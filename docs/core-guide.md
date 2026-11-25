@@ -338,3 +338,109 @@ node and condition before executing the graph. A missing dependency can be
 loaded and the same trigger retried. Replay after a restart requires the
 host to load the original versions again. Action permissions and schemas
 are configured separately by the host.
+
+## Runtime and detector library registration
+
+Reaction functions and experiment detectors have separate registration points.
+Reaction libraries are loaded explicitly by the host into a live
+`FunctionRegistry`; training-set detectors are discovered by `select_lens()`
+from the `reflex_intelligence.detectors` package entry-point group. A detector
+library can be installed after REFLEX itself without changing the selector.
+
+Declare a detector provider in its package metadata:
+
+```toml
+[project.entry-points."reflex_intelligence.detectors"]
+robust-amount = "amount_detector:provide"
+```
+
+The provider returns detector contracts. `match_score` and `fit` receive only
+training information; scoring runs after REFLEX chooses one detector. The
+selector ranks supported detectors by their compatibility score, with a stable
+deterministic tie-break on the detector ID. The selected detector is fitted on
+the training partition, and REFLEX calibrates its cutoff on the separate
+calibration partition. Evaluation labels are not passed to a detector.
+
+```python
+from statistics import median
+
+from reflex.registry import DetectorPlugin
+
+def match_score(profile):
+    return 0.9 if "amount" in profile["numeric_fields"] else None
+
+def fit(training_events, _profile):
+    values = [float(event.attributes["amount"]) for event in training_events
+              if isinstance(event.attributes.get("amount"), (int, float))]
+    center = median(values)
+    deviations = [abs(value - center) for value in values]
+    scale = max(1.4826 * median(deviations), 1e-6)
+    return center, scale
+
+def score(model, events):
+    center, scale = model
+    return {
+        event.event_id: abs(float(event.attributes["amount"]) - center) / scale
+        if isinstance(event.attributes.get("amount"), (int, float)) else 0.0
+        for event in events
+    }
+
+def provide():
+    return [DetectorPlugin(
+        lens_id="robust_amount",
+        version="1.0",
+        description="Robust single-field amount deviation.",
+        match_score=match_score,
+        fit=fit,
+        score=score,
+        features=("amount",),
+    )]
+```
+
+Calling `select_lens(experiment)` discovers installed detector providers at
+selection time. For an embedded host or a focused experiment, pass a prepared
+`DetectorRegistry` explicitly. A match score ranks a detector's declared
+training-data fit; it is not an estimate of accuracy. The benchmark must still
+report held-out quality and compare it with the built-in fallback. A detector
+that returns a score for the wrong event IDs or a non-finite score is rejected.
+Discovery imports every installed detector entry point, so install only
+providers trusted to execute in the host process.
+
+### Action idempotency and run records
+
+An `ActionEvent` uses its declared `idempotency_key` as its logical request key;
+when that field is empty, REFLEX falls back to the action event ID. The key is
+scoped by the action function. The SQLite state store reserves it atomically
+before execution, so a second event with the same key and same request returns
+the prior outcome without invoking the action again. Reusing the same key with
+different arguments, permissions, schemas, or retry settings raises an error.
+This also works across processes that share the same state database.
+
+The event ledger and state database are separate stores. If the process stops
+while an action key is marked `running` and before a terminal result is
+recorded, REFLEX will not repeat the side effect automatically. That avoids
+blind duplicate calls, but the outcome may need reconciliation with the
+external service. An action provider can opt in to receiving the key as a
+keyword argument, then forward it to its external service when supported:
+
+```python
+def publish(arguments, *, idempotency_key):
+    return messaging_service.publish(
+        arguments["message"], idempotency_key=idempotency_key,
+    )
+
+actions.register("publish", "1.0", "publish", publish,
+                 pass_idempotency_key=True)
+```
+
+Each `ReactionRun` records the pinned `state_snapshot` and its source, plus a
+`function_state_snapshots` entry for every condition and node function call.
+Those entries identify the node/event invocation, allowing reviewers to see the
+state actually passed into a policy or lens; `function_state_snapshots_hash`
+provides a stable digest of that call-context map. `function_providers` records the
+installed package and package version for dynamically loaded functions. A
+replay reuses the saved live run's snapshot unless the caller supplies an
+explicit replacement. It also reuses each saved per-invocation state context,
+so a replay remains stable even when a prior live node updated state before a
+later node ran. Functions should make decisions from the supplied snapshot
+rather than from a closed-over mutable state store if replayability is required.

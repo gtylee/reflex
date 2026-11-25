@@ -375,6 +375,12 @@ class StateStore:
                 max_queries INTEGER NOT NULL, investigations_used INTEGER NOT NULL DEFAULT 0,
                 queries_used INTEGER NOT NULL DEFAULT 0
             );
+            CREATE TABLE IF NOT EXISTS action_idempotency (
+                dedupe_key TEXT PRIMARY KEY, request_hash TEXT NOT NULL,
+                action_event_id TEXT NOT NULL, status TEXT NOT NULL,
+                attempts INTEGER NOT NULL DEFAULT 0, result_event_id TEXT,
+                updated_at TEXT NOT NULL
+            );
         """)
 
     def set(self, namespace: str, key: str, value: Any, reason: str) -> int:
@@ -407,6 +413,18 @@ class StateStore:
             params = (namespace,)
         return {row["state_key"]: json.loads(row["value_json"]) for row in self.connection.execute(query, params)}
 
+    def snapshot_context(self) -> dict[str, Any]:
+        """Return flat and namespace-qualified views from one SQLite read."""
+        rows = self.connection.execute(
+            "SELECT namespace,state_key,value_json FROM state_records"
+        ).fetchall()
+        snapshot: dict[str, Any] = {}
+        for row in rows:
+            value = json.loads(row["value_json"])
+            snapshot[row["state_key"]] = value
+            snapshot[f"{row['namespace']}:{row['state_key']}"] = value
+        return snapshot
+
     def snapshot_at(self, namespace: str, as_of: datetime) -> dict[str, dict[str, Any]]:
         """Return a namespace view reconstructed at an aware timestamp.
 
@@ -433,6 +451,88 @@ class StateStore:
                 value = max(eligible, key=lambda item: (item[0], item[1]))[2]
             result[row["state_key"]] = value
         return result
+
+    def action_idempotency(self, dedupe_key: str, request_hash: str) -> dict[str, Any] | None:
+        """Read an action idempotency record, rejecting key reuse for new input."""
+        row = self.connection.execute(
+            "SELECT * FROM action_idempotency WHERE dedupe_key=?", (dedupe_key,)
+        ).fetchone()
+        if row is None:
+            return None
+        record = dict(row)
+        if record["request_hash"] != request_hash:
+            raise ValueError("idempotency key was already used with different action content")
+        return record
+
+    def claim_action(self, dedupe_key: str, request_hash: str, action_event_id: str,
+                     *, legacy_record: dict[str, Any] | None = None) -> tuple[bool, dict[str, Any]]:
+        """Atomically reserve an action key before calling its external function.
+
+        SQLite's immediate write transaction serializes claims across processes
+        using this database. A duplicate receives the existing record and must
+        not repeat the side effect.
+        """
+        now = datetime.now(timezone.utc).isoformat()
+        self.connection.execute("BEGIN IMMEDIATE")
+        try:
+            row = self.connection.execute(
+                "SELECT * FROM action_idempotency WHERE dedupe_key=?", (dedupe_key,)
+            ).fetchone()
+            if row is not None:
+                record = dict(row)
+                if record["request_hash"] != request_hash:
+                    raise ValueError("idempotency key was already used with different action content")
+                self.connection.execute("COMMIT")
+                return False, record
+
+            # Migrate the outcome of a pre-idempotency execution the first time
+            # that the same logical action is seen after an upgrade.
+            if (legacy_record or {}).get("status") in {"succeeded", "failed"}:
+                record = {
+                    "dedupe_key": dedupe_key,
+                    "request_hash": request_hash,
+                    "action_event_id": action_event_id,
+                    "status": legacy_record["status"],
+                    "attempts": int(legacy_record.get("attempts", 0)),
+                    "result_event_id": legacy_record.get("result_event_id"),
+                    "updated_at": now,
+                }
+            else:
+                record = {
+                    "dedupe_key": dedupe_key,
+                    "request_hash": request_hash,
+                    "action_event_id": action_event_id,
+                    "status": "running",
+                    "attempts": int(legacy_record.get("attempts", 0))
+                    if (legacy_record or {}).get("status") == "retrying" else 0,
+                    "result_event_id": None,
+                    "updated_at": now,
+                }
+            self.connection.execute(
+                "INSERT INTO action_idempotency VALUES (?,?,?,?,?,?,?)",
+                tuple(record[key] for key in (
+                    "dedupe_key", "request_hash", "action_event_id", "status",
+                    "attempts", "result_event_id", "updated_at",
+                )),
+            )
+            self.connection.execute("COMMIT")
+            return record["status"] == "running", record
+        except Exception:
+            if self.connection.in_transaction:
+                self.connection.execute("ROLLBACK")
+            raise
+
+    def finish_action(self, dedupe_key: str, *, status: str, attempts: int,
+                      result_event_id: str | None) -> None:
+        """Persist the terminal outcome for a claimed idempotency key."""
+        if status not in {"succeeded", "failed"}:
+            raise ValueError("action idempotency status must be succeeded or failed")
+        with self.connection:
+            self.connection.execute(
+                "UPDATE action_idempotency SET status=?,attempts=?,result_event_id=?,updated_at=? "
+                "WHERE dedupe_key=? AND status='running'",
+                (status, attempts, result_event_id, datetime.now(timezone.utc).isoformat(), dedupe_key),
+            )
 
     def audit(self, namespace: str | None = None) -> list[dict[str, Any]]:
         """List state transitions in insertion order, optionally by namespace."""

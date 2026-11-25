@@ -11,8 +11,10 @@ REFLEX turns an event stream into evidence, a decision, and a bounded action. It
 The CLI follows the same boundary: use `reflex replay --sql-file lens.sql` for a caller-defined core Lens, and `reflex experiments ...` for prepared examples such as `reflex experiments transaction-replay` and `reflex experiments discovery demo`.
 
 A running Reaction host can load lenses and policies from installed Python packages with
-`runtime.functions.load_library("portfolio-news")`. Each graph names the exact versions it uses.
-See [registering a function library](docs/core-guide.md#registering-a-library-while-reflex-is-running).
+`runtime.functions.load_library("portfolio-news")`. Training-set lens selection can also
+discover optional statistical detector libraries through its detector entry-point group.
+Reaction run records retain the state supplied to each function and the provider version.
+See [runtime and detector libraries](docs/core-guide.md#runtime-and-detector-library-registration).
 
 ## Get started
 
@@ -71,6 +73,8 @@ uv run reflex experiments discovery benchmark pilot --out reports/reflex-pilot -
 | `src/reflex/core/models/` | Immutable event, Lens, policy, and feature types, grouped by domain |
 | `src/reflex/experiments/models/` | Experiment inputs, label-separated records, adapter outputs, and reports |
 | `src/reflex/core/storage.py` | Event ledger, durable state, and audit trail |
+| `src/reflex/registry.py` | Versioned Reaction functions and training-only detector libraries |
+| `src/reflex/experiments/lens_selection.py` | Training-based detector choice and calibration |
 | `src/reflex/core/features.py` | Generic feature-row to matrix conversion |
 | `src/reflex/core/discovery.py` | Schema-driven statistical fitting, calibration, and scoring |
 | `src/reflex/core/policy.py` | Policy decisions, bounded tools, and local investigation |

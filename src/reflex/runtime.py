@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -17,10 +18,10 @@ from reflex.core.models.events import ActionEvent, ActionResultEvent, Event, sta
 from reflex.core.storage import EventStore, StateStore
 from .contracts.reactions import FunctionRef, ReactionDefinition, ReactionEdge, ReactionNode
 from .contracts.schemas import SchemaRegistry
-from .registry import ConditionFunction, FunctionRegistry, FunctionSpec, ReactionFunction
+from .registry import FunctionRegistry, FunctionSpec, ReactionFunction
 
 
-ActionFunction = Callable[[dict[str, Any]], dict[str, Any] | None]
+ActionFunction = Callable[..., dict[str, Any] | None]
 
 
 @dataclass(frozen=True)
@@ -31,6 +32,9 @@ class ActionFunctionSpec:
     function: ActionFunction
     argument_schema_ref: str | None = None
     result_schema_ref: str | None = None
+    pass_idempotency_key: bool = False
+    provider: str | None = None
+    provider_version: str | None = None
 
     @property
     def ref(self) -> str:
@@ -47,11 +51,21 @@ class ActionExecutor:
         self._actions: dict[str, ActionFunctionSpec] = {}
 
     def register(self, function_id: str, version: str, permission: str, function: ActionFunction, *,
-                 argument_schema_ref: str | None = None, result_schema_ref: str | None = None) -> None:
-        spec = ActionFunctionSpec(function_id, version, permission, function, argument_schema_ref, result_schema_ref)
+                 argument_schema_ref: str | None = None, result_schema_ref: str | None = None,
+                 pass_idempotency_key: bool = False,
+                 provider: str | None = None, provider_version: str | None = None) -> None:
+        spec = ActionFunctionSpec(function_id, version, permission, function, argument_schema_ref,
+                                  result_schema_ref, pass_idempotency_key, provider, provider_version)
         if spec.ref in self._actions:
             raise ValueError(f"action function {spec.ref!r} is already registered")
         self._actions[spec.ref] = spec
+
+    def provider_details(self, function_ref: str) -> dict[str, str | None] | None:
+        """Return package metadata for an action function registered by the host."""
+        spec = self._actions.get(function_ref)
+        if spec is None:
+            return None
+        return {"provider": spec.provider, "provider_version": spec.provider_version}
 
     def execute(self, action: ActionEvent, *, permissions: Iterable[str], replay: bool = False) -> ActionResultEvent | None:
         self.event_store.add_events([action])
@@ -69,48 +83,86 @@ class ActionExecutor:
 
         state_key = f"action:{action.event_id}"
         prior = self.state.get("execution", state_key, {})
-        if prior.get("status") == "succeeded":
-            return self._find_result(prior.get("result_event_id"))
-        if prior.get("status") == "failed" and prior.get("attempts", 0) >= action.retry_limit + 1:
-            return self._find_result(prior.get("result_event_id"))
+        declared_key = action.idempotency_key or action.event_id
+        identity = {
+            "function": action.action_function,
+            "permission": action.required_permission,
+            "arguments": action.arguments,
+            "argument_schema_ref": spec.argument_schema_ref,
+            "result_schema_ref": spec.result_schema_ref,
+            "pass_idempotency_key": spec.pass_idempotency_key,
+            "retry_limit": action.retry_limit,
+        }
+        request_hash = sha256(json.dumps(identity, sort_keys=True, separators=(",", ":"), default=str).encode()).hexdigest()
+        dedupe_key = sha256(f"{action.action_function}\0{declared_key}".encode()).hexdigest()
         if replay:
+            saved_action = self.state.action_idempotency(dedupe_key, request_hash)
+            if saved_action:
+                return self._existing_action_result(saved_action, dedupe_key)
+            if prior.get("status") in {"succeeded", "failed"}:
+                return self._find_result(prior.get("result_event_id"))
             self.state.set("execution", state_key, {
-                "action_event_id": action.event_id, "idempotency_key": action.idempotency_key or action.event_id,
+                "action_event_id": action.event_id, "idempotency_key": declared_key,
                 "status": "skipped_replay", "attempts": prior.get("attempts", 0), "result_event_id": None,
             }, "external action skipped during replay")
             return None
 
-        attempts = int(prior.get("attempts", 0))
+        legacy_record = prior
+        if prior.get("status") == "failed" and int(prior.get("attempts", 0)) < action.retry_limit + 1:
+            legacy_record = {**prior, "status": "retrying"}
+        owner, existing = self.state.claim_action(
+            dedupe_key, request_hash, action.event_id, legacy_record=legacy_record,
+        )
+        if not owner:
+            outcome = self._existing_action_result(existing, dedupe_key)
+            if outcome is not None or existing["status"] in {"succeeded", "failed"}:
+                return outcome
+            # Another executor has reserved this key. Returning no outcome
+            # prevents a duplicate side effect while that request completes.
+            return None
+
         last_result: ActionResultEvent | None = None
-        for attempt in range(attempts + 1, action.retry_limit + 2):
+        for attempt in range(int(existing["attempts"]) + 1, action.retry_limit + 2):
             try:
-                result = spec.function(dict(action.arguments)) or {}
+                if spec.pass_idempotency_key:
+                    result = spec.function(dict(action.arguments), idempotency_key=declared_key) or {}
+                else:
+                    result = spec.function(dict(action.arguments)) or {}
                 if not isinstance(result, dict):
                     raise ValueError("action functions must return a structured object")
                 if spec.result_schema_ref:
                     if self.schemas is None:
                         raise ValueError("action result schema is configured but no SchemaRegistry is available")
                     self.schemas.validate(spec.result_schema_ref, dict(result))
-                last_result = self._result_event(action, attempt, "succeeded", result)
-                self.event_store.add_events([last_result])
-                self.state.set("execution", state_key, {
-                    "action_event_id": action.event_id,
-                    "idempotency_key": action.idempotency_key or action.event_id,
-                    "status": "succeeded", "attempts": attempt,
-                    "result_event_id": last_result.event_id,
-                }, "action completed")
-                return last_result
             except Exception as error:  # action failures are durable outcomes, not silent exceptions
                 last_result = self._result_event(action, attempt, "failed", {"error": str(error)})
                 self.event_store.add_events([last_result])
                 self.state.set("execution", state_key, {
                     "action_event_id": action.event_id,
-                    "idempotency_key": action.idempotency_key or action.event_id,
+                    "idempotency_key": declared_key,
                     "status": "failed", "attempts": attempt,
                     "result_event_id": last_result.event_id,
                 }, f"action attempt {attempt} failed")
-                if attempt >= attempts + action.retry_limit + 1:
+                if attempt >= action.retry_limit + 1:
+                    self.state.finish_action(dedupe_key, status="failed", attempts=attempt,
+                                             result_event_id=last_result.event_id)
                     return last_result
+                continue
+
+            # Keep persistence errors outside the action-function exception
+            # handler: a successful side effect must never be mislabeled as a
+            # failed action just because recording its outcome failed.
+            last_result = self._result_event(action, attempt, "succeeded", result)
+            self.event_store.add_events([last_result])
+            self.state.set("execution", state_key, {
+                "action_event_id": action.event_id,
+                "idempotency_key": declared_key,
+                "status": "succeeded", "attempts": attempt,
+                "result_event_id": last_result.event_id,
+            }, "action completed")
+            self.state.finish_action(dedupe_key, status="succeeded", attempts=attempt,
+                                     result_event_id=last_result.event_id)
+            return last_result
         return last_result
 
     def _result_event(self, action: ActionEvent, attempt: int, status: Literal["succeeded", "failed"],
@@ -137,6 +189,34 @@ class ActionExecutor:
                 return event
         return None
 
+    def _existing_action_result(self, record: dict[str, Any], dedupe_key: str) -> ActionResultEvent | None:
+        """Return a prior result and recover a committed result after a crash."""
+        if record["status"] in {"succeeded", "failed"}:
+            return self._find_result(record.get("result_event_id"))
+        if record["status"] != "running":
+            return None
+        events = self.event_store.events()
+        action = next((event for event in events
+                       if isinstance(event, ActionEvent) and event.event_id == record["action_event_id"]), None)
+        outcomes = [event for event in events if isinstance(event, ActionResultEvent)
+                    and event.action_event_id == record["action_event_id"]]
+        if action is None or not outcomes:
+            return None
+        outcome = max(outcomes, key=lambda event: event.attempt)
+        # A success is terminal at any attempt. A failure can be terminal only
+        # after the action's declared retry allowance has been exhausted.
+        if outcome.status != "succeeded" and outcome.attempt < action.retry_limit + 1:
+            return None
+        self.state.finish_action(dedupe_key, status=outcome.status, attempts=outcome.attempt,
+                                 result_event_id=outcome.event_id)
+        self.state.set("execution", f"action:{action.event_id}", {
+            "action_event_id": action.event_id,
+            "idempotency_key": action.idempotency_key or action.event_id,
+            "status": outcome.status, "attempts": outcome.attempt,
+            "result_event_id": outcome.event_id,
+        }, "recovered action outcome from event ledger")
+        return outcome
+
 
 class ReactionRun(FrozenModel):
     run_id: str
@@ -151,7 +231,11 @@ class ReactionRun(FrozenModel):
     replay: bool = False
     skip_reason: str | None = None
     state_snapshot: dict[str, Any] = Field(default_factory=dict)
+    state_snapshot_source: Literal["captured", "provided", "live_run"] = "captured"
     state_snapshot_hash: str
+    function_state_snapshots: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    function_state_snapshots_hash: str = ""
+    function_providers: dict[str, dict[str, str | None]] = Field(default_factory=dict)
     started_at: datetime
     finished_at: datetime
 
@@ -210,7 +294,25 @@ class ReactionRuntime:
         # A missing library can be loaded and the same trigger submitted again.
         bound = self.functions.bind(definition)
         started = datetime.now(timezone.utc)
-        pinned_state = state_snapshot if state_snapshot is not None else self._capture_state(definition)
+        replay_function_snapshots: dict[str, dict[str, Any]] = {}
+        if state_snapshot is not None:
+            pinned_state = deepcopy(state_snapshot)
+            snapshot_source: Literal["captured", "provided", "live_run"] = "provided"
+        elif replay:
+            live_run_id = stable_id("reflex-run", definition.reaction_id, definition.version,
+                                    event.event_id, "live")
+            live_run = self.state.get("execution", f"run:{live_run_id}")
+            if live_run is not None:
+                saved_live_run = ReactionRun.model_validate(live_run)
+                pinned_state = deepcopy(saved_live_run.state_snapshot)
+                replay_function_snapshots = deepcopy(saved_live_run.function_state_snapshots)
+                snapshot_source = "live_run"
+            else:
+                pinned_state = self._capture_state(definition)
+                snapshot_source = "captured"
+        else:
+            pinned_state = self._capture_state(definition)
+            snapshot_source = "captured"
         state_hash = sha256(json.dumps(pinned_state, sort_keys=True, separators=(",", ":"), default=str).encode()).hexdigest()
         node_by_id = {node.node_id: node for node in definition.nodes}
         entries = tuple(node.node_id for node in definition.nodes
@@ -222,24 +324,34 @@ class ReactionRuntime:
         emitted: dict[str, Event] = {}
         errors: list[str] = []
         versions: set[str] = set()
+        function_state_snapshots: dict[str, dict[str, Any]] = {}
         executed = 0
         budget_exceeded = False
 
         missing_definition_state = [requirement for requirement in definition.state_requirements
-                                   if not self._state_requirement(requirement)]
+                                   if not self._pinned_state_requirement(requirement, pinned_state)]
         if missing_definition_state:
             errors.append("missing Reaction state requirement(s): " + ", ".join(missing_definition_state))
             queue.clear()
 
-        def condition_matches(ref: str | None, item: Event, snapshot: dict[str, Any]) -> bool:
+        def condition_matches(ref: str | None, item: Event, invocation: str) -> bool:
             if ref is None:
                 return True
             versions.add(ref)
+            snapshot = invocation_snapshot(invocation)
             try:
                 return bool(bound[ref].function(item, snapshot))
             except Exception as error:
                 errors.append(f"condition {ref} on {item.event_id}: {error}")
                 return False
+
+        def invocation_snapshot(invocation: str) -> dict[str, Any]:
+            if replay and state_snapshot is None and invocation in replay_function_snapshots:
+                snapshot = deepcopy(replay_function_snapshots[invocation])
+            else:
+                snapshot = self._merged_snapshot(pinned_state)
+            function_state_snapshots[invocation] = deepcopy(snapshot)
+            return snapshot
 
         while queue:
             node_id, current = queue.popleft()
@@ -253,11 +365,8 @@ class ReactionRuntime:
             visited.add(visit_key)
             if node.accepts_event_types and not self._matches(node.accepts_event_types, current.event_type):
                 continue
-            snapshot = self._merged_snapshot(pinned_state)
-            if not condition_matches(node.condition_ref, current, snapshot):
-                continue
-            if any(not self._state_requirement(requirement) for requirement in node.state_requirements):
-                errors.append(f"node {node.node_id}: missing state requirement")
+            if not condition_matches(node.condition_ref, current,
+                                     f"condition:{node.node_id}:{current.event_id}"):
                 continue
             spec = bound[node.function.ref]
             versions.add(spec.ref.ref)
@@ -270,10 +379,15 @@ class ReactionRuntime:
                 except (KeyError, ValueError) as error:
                     errors.append(f"node {node.node_id}: input contract failed: {error}")
                     continue
+            invocation = f"function:{spec.ref.ref}:{node.node_id}:{current.event_id}"
+            snapshot = invocation_snapshot(invocation)
+            if any(not self._state_requirement(requirement, snapshot) for requirement in node.state_requirements):
+                errors.append(f"node {node.node_id}: missing state requirement")
+                continue
             function_outputs: list[Event] = []
             for attempt in range(definition.max_retries + 1):
                 try:
-                    function_outputs = list(spec.function(current, snapshot))
+                    function_outputs = list(spec.function(current, deepcopy(snapshot)))
                     break
                 except Exception as error:
                     if attempt == definition.max_retries:
@@ -317,7 +431,10 @@ class ReactionRuntime:
                         try:
                             outcome = self.actions.execute(produced, permissions=definition.permissions, replay=replay)
                             if not replay:
-                                for result_event in self._action_outcomes(produced.event_id):
+                                outcomes = self._action_outcomes(produced.event_id)
+                                if outcome is not None and all(item.event_id != outcome.event_id for item in outcomes):
+                                    outcomes.append(outcome)
+                                for result_event in outcomes:
                                     emitted[result_event.event_id] = result_event
                                     downstream_events.append(result_event)
                             if outcome is not None and outcome.status == "failed":
@@ -325,10 +442,12 @@ class ReactionRuntime:
                         except (KeyError, PermissionError, ValueError) as error:
                             errors.append(f"node {node.node_id}: action execution rejected: {error}")
                 for output in downstream_events:
-                    for edge in node.edges:
+                    for edge_index, edge in enumerate(node.edges):
                         if edge.event_types and not self._matches(edge.event_types, output.event_type):
                             continue
-                        if condition_matches(edge.condition_ref, output, self._merged_snapshot(pinned_state)):
+                        edge_invocation = f"edge:{node.node_id}:{edge_index}:{output.event_id}"
+                        if condition_matches(edge.condition_ref, output,
+                                             f"condition:{edge.condition_ref}:{edge_invocation}"):
                             queue.append((edge.target, output))
                     if self._matches(definition.subscriptions, output.event_type):
                         for entry_node in self._entry_nodes(node_by_id, definition, output.event_type):
@@ -339,22 +458,47 @@ class ReactionRuntime:
         status: Literal["succeeded", "failed", "budget_exceeded"] = (
             "budget_exceeded" if budget_exceeded else "failed" if errors else "succeeded"
         )
+        function_providers: dict[str, dict[str, str | None]] = {}
+        for function_ref in versions:
+            if function_ref in bound:
+                spec = bound[function_ref]
+                function_providers[function_ref] = {
+                    "provider": spec.provider,
+                    "provider_version": spec.provider_version,
+                }
+            elif self.actions is not None:
+                details = self.actions.provider_details(function_ref)
+                if details is not None:
+                    function_providers[function_ref] = details
+        function_snapshots_hash = sha256(json.dumps(
+            function_state_snapshots, sort_keys=True, separators=(",", ":"), default=str
+        ).encode()).hexdigest()
         result = ReactionRun(
             run_id=run_id, reaction_id=definition.reaction_id, reaction_version=definition.version,
             trigger_event_id=event.event_id, status=status, emitted_event_ids=tuple(emitted),
             nodes_executed=executed, function_versions=tuple(sorted(versions)), errors=tuple(errors),
-            replay=replay, state_snapshot=pinned_state, state_snapshot_hash=state_hash,
+            replay=replay, state_snapshot=pinned_state, state_snapshot_source=snapshot_source,
+            state_snapshot_hash=state_hash, function_state_snapshots=function_state_snapshots,
+            function_state_snapshots_hash=function_snapshots_hash,
+            function_providers=function_providers,
             started_at=started, finished_at=datetime.now(timezone.utc),
         )
         self.state.set("execution", run_key, result.model_dump(mode="json"),
                        f"Reaction {definition.reaction_id}@{definition.version} {status}")
         return result
 
-    def _state_requirement(self, requirement: str) -> bool:
+    def _pinned_state_requirement(self, requirement: str, pinned_state: dict[str, Any]) -> bool:
         if ":" in requirement:
-            namespace, key = requirement.split(":", 1)
-            return self.state.get(namespace, key, None) is not None
-        return bool(self.state.snapshot(requirement))
+            _namespace, key = requirement.split(":", 1)
+            value = pinned_state.get(requirement, pinned_state.get(key))
+            return value is not None
+        return bool(pinned_state.get(requirement))
+
+    @staticmethod
+    def _state_requirement(requirement: str, snapshot: dict[str, Any]) -> bool:
+        if ":" in requirement:
+            return requirement in snapshot and snapshot[requirement] is not None
+        return bool(snapshot.get(requirement)) or any(key.startswith(f"{requirement}:") for key in snapshot)
 
     def _capture_state(self, definition: ReactionDefinition) -> dict[str, Any]:
         captured: dict[str, Any] = {}
@@ -370,14 +514,20 @@ class ReactionRuntime:
                 captured[requirement] = self.state.snapshot(requirement)
         return captured
 
-    def _merged_snapshot(self, pinned_state: dict[str, Any]) -> dict[str, dict[str, Any]]:
-        snapshot = self.state.snapshot()
+    def _merged_snapshot(self, pinned_state: dict[str, Any]) -> dict[str, Any]:
+        # Preserve the legacy flat lookup while also recording qualified names.
+        # Per-invocation snapshots make changes between nodes reproducible.
+        snapshot: dict[str, Any] = self.state.snapshot_context()
         for requirement, value in pinned_state.items():
             if ":" in requirement:
                 _namespace, key = requirement.split(":", 1)
-                snapshot[key] = value
+                snapshot[requirement] = deepcopy(value)
+                snapshot[key] = deepcopy(value)
             elif isinstance(value, dict):
-                snapshot.update(value)
+                snapshot[requirement] = deepcopy(value)
+                snapshot.update(deepcopy(value))
+            else:
+                snapshot[requirement] = deepcopy(value)
         return snapshot
 
     @staticmethod

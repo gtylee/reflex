@@ -8,6 +8,8 @@ Evaluation labels stay outside this module.
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+from collections.abc import Mapping
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import timedelta
 from math import log
@@ -16,6 +18,7 @@ from typing import Any
 import numpy as np
 
 from .models.inputs import AgentInput
+from ..registry import DetectorRegistry
 
 
 CALIBRATION_QUANTILE = 0.99
@@ -32,6 +35,9 @@ class LensSelection:
     threshold: float
     calibration_alert_count: int
     scores: dict[str, float]
+    lens_version: str | None = None
+    provider: str | None = None
+    provider_version: str | None = None
 
 
 def _is_number(value: Any) -> bool:
@@ -277,8 +283,16 @@ def _sequence_scores(events, training_events, *, max_gap: timedelta = timedelta(
     return scores
 
 
-def select_lens(experiment: AgentInput) -> LensSelection:
-    """Select a lens and calibration threshold without reading evaluation labels."""
+def select_lens(experiment: AgentInput, *, registry: DetectorRegistry | None = None) -> LensSelection:
+    """Select and calibrate a lens using training data and a held-out calibration slice.
+
+    Installed providers can offer detectors through the
+    ``reflex_intelligence.detectors`` entry-point group. Their compatibility
+    score and fit methods receive training data only. Once a detector is
+    selected, it scores the stream and REFLEX sets its threshold from the
+    calibration partition. If no provider is applicable, the built-in lens
+    heuristics remain the fallback.
+    """
     training_events = [event for event in experiment.events if event.event_time < experiment.train_end]
     calibration_events = [event for event in experiment.events
                           if experiment.train_end <= event.event_time < experiment.calibration_end]
@@ -286,19 +300,51 @@ def select_lens(experiment: AgentInput) -> LensSelection:
         raise ValueError("lens selection needs at least 20 training and 10 calibration events")
     numeric_fields, categorical_fields, singleton_categories = _attribute_profile(training_events)
     profile = _training_profile(training_events, numeric_fields, categorical_fields)
-    lens_id, rationale, selected_fields = _choose_lens(profile, singleton_categories)
-    medians, centers, scales = _numeric_statistics(training_events, numeric_fields)
-
-    if lens_id == "sequence_novelty":
-        score_values = _sequence_scores(list(experiment.events), training_events)
-    elif lens_id == "categorical_novelty":
-        category_fields = selected_fields or categorical_fields
-        score_values = _categorical_scores(list(experiment.events), training_events, category_fields)
-    elif lens_id == "multivariate_relationship":
-        score_values = _relationship_scores(list(experiment.events), training_events, numeric_fields)
+    detector_registry = registry or _discover_detectors()
+    candidates = detector_registry.candidates(profile)
+    provider = None
+    provider_version = None
+    lens_version = None
+    if candidates:
+        match_score, detector = candidates[0]
+        training = deepcopy(tuple(training_events))
+        fitted = detector.fit(training, deepcopy(profile))
+        detector_scores = detector.score(fitted, deepcopy(tuple(experiment.events)))
+        if not isinstance(detector_scores, Mapping):
+            raise TypeError(f"detector {detector.ref!r} must return scores keyed by event ID")
+        expected_ids = {event.event_id for event in experiment.events}
+        if set(detector_scores) != expected_ids:
+            missing = expected_ids.difference(detector_scores)
+            extra = set(detector_scores).difference(expected_ids)
+            raise ValueError(f"detector {detector.ref!r} returned mismatched event IDs (missing={len(missing)}, extra={len(extra)})")
+        raw_scores = [detector_scores[event.event_id] for event in experiment.events]
+        if any(not _is_number(value) for value in raw_scores):
+            raise ValueError(f"detector {detector.ref!r} returned a non-numeric score")
+        score_values = np.asarray([float(value) for value in raw_scores], dtype=float)
+        if not np.isfinite(score_values).all():
+            raise ValueError(f"detector {detector.ref!r} returned a non-finite score")
+        lens_id = detector.lens_id
+        lens_version = detector.version
+        rationale = (f"Installed detector {detector.ref} was selected from training data "
+                     f"with a compatibility score of {match_score:.3f}. {detector.description}")
+        selected_fields = detector.features
+        provider = detector.provider
+        provider_version = detector.provider_version
+        profile["selected_match_score"] = match_score
     else:
-        score_values = _univariate_scores(list(experiment.events), numeric_fields, centers, scales,
-                                          use_cusum=(lens_id == "robust_numeric_drift"))
+        lens_id, rationale, selected_fields = _choose_lens(profile, singleton_categories)
+        medians, centers, scales = _numeric_statistics(training_events, numeric_fields)
+
+        if lens_id == "sequence_novelty":
+            score_values = _sequence_scores(list(experiment.events), training_events)
+        elif lens_id == "categorical_novelty":
+            category_fields = selected_fields or categorical_fields
+            score_values = _categorical_scores(list(experiment.events), training_events, category_fields)
+        elif lens_id == "multivariate_relationship":
+            score_values = _relationship_scores(list(experiment.events), training_events, numeric_fields)
+        else:
+            score_values = _univariate_scores(list(experiment.events), numeric_fields, centers, scales,
+                                              use_cusum=(lens_id == "robust_numeric_drift"))
 
     event_scores = {event.event_id: float(score_values[index])
                     for index, event in enumerate(experiment.events)}
@@ -306,7 +352,10 @@ def select_lens(experiment: AgentInput) -> LensSelection:
     threshold = float(np.quantile(calibration_scores, CALIBRATION_QUANTILE))
     calibration_alert_count = int(np.sum(calibration_scores >= threshold)) if threshold > 0 else int(np.sum(calibration_scores > 0))
     profile["selected_lens"] = lens_id
+    profile["selected_lens_version"] = lens_version
     profile["selected_features"] = list(selected_fields)
+    profile["selected_provider"] = provider
+    profile["selected_provider_version"] = provider_version
     return LensSelection(
         lens_id=lens_id,
         rationale=rationale,
@@ -315,7 +364,18 @@ def select_lens(experiment: AgentInput) -> LensSelection:
         threshold=threshold,
         calibration_alert_count=calibration_alert_count,
         scores=event_scores,
+        lens_version=lens_version,
+        provider=provider,
+        provider_version=provider_version,
     )
+
+
+def _discover_detectors() -> DetectorRegistry:
+    """Load installed providers at selection time so new libraries can compete."""
+    registry = DetectorRegistry()
+    for name in registry.available_libraries():
+        registry.load_library(name)
+    return registry
 
 
 def simple_numeric_baseline(experiment: AgentInput) -> LensSelection:
