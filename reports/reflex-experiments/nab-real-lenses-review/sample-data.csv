@@ -1,0 +1,23 @@
+series,timestamp,value,in_labeled_anomaly_window,sample_section
+realKnownCause/machine_temperature_system_failure.csv,2013-12-02 21:15:00,73.96732330322266,False,start_of_series
+realKnownCause/machine_temperature_system_failure.csv,2013-12-02 21:20:00,74.93588256835938,False,start_of_series
+realKnownCause/machine_temperature_system_failure.csv,2013-12-02 21:25:00,76.12416076660156,False,start_of_series
+realKnownCause/machine_temperature_system_failure.csv,2013-12-02 21:30:00,78.14070892333984,False,start_of_series
+realKnownCause/machine_temperature_system_failure.csv,2013-12-02 21:35:00,79.329833984375,False,start_of_series
+realKnownCause/machine_temperature_system_failure.csv,2013-12-02 21:40:00,78.71041870117188,False,start_of_series
+realKnownCause/machine_temperature_system_failure.csv,2013-12-02 21:45:00,80.26978302001953,False,start_of_series
+realKnownCause/machine_temperature_system_failure.csv,2013-12-02 21:50:00,80.2728271484375,False,start_of_series
+realKnownCause/machine_temperature_system_failure.csv,2013-12-02 21:55:00,80.35342407226562,False,start_of_series
+realKnownCause/machine_temperature_system_failure.csv,2013-12-02 22:00:00,79.48652648925781,False,start_of_series
+realKnownCause/machine_temperature_system_failure.csv,2013-12-02 22:05:00,80.78327941894531,False,start_of_series
+realKnownCause/machine_temperature_system_failure.csv,2013-12-02 22:10:00,79.5081558227539,False,start_of_series
+realKnownCause/machine_temperature_system_failure.csv,2013-12-15 17:30:00,98.3809585571289,False,first_test_anomaly_window
+realKnownCause/machine_temperature_system_failure.csv,2013-12-15 17:35:00,99.19894409179688,False,first_test_anomaly_window
+realKnownCause/machine_temperature_system_failure.csv,2013-12-15 17:40:00,99.6059799194336,False,first_test_anomaly_window
+realKnownCause/machine_temperature_system_failure.csv,2013-12-15 17:45:00,98.99952697753906,False,first_test_anomaly_window
+realKnownCause/machine_temperature_system_failure.csv,2013-12-15 17:50:00,97.6448745727539,True,first_test_anomaly_window
+realKnownCause/machine_temperature_system_failure.csv,2013-12-15 17:55:00,99.10575103759766,True,first_test_anomaly_window
+realKnownCause/machine_temperature_system_failure.csv,2013-12-15 18:00:00,98.24683380126953,True,first_test_anomaly_window
+realKnownCause/machine_temperature_system_failure.csv,2013-12-15 18:05:00,98.88179016113281,True,first_test_anomaly_window
+realKnownCause/machine_temperature_system_failure.csv,2013-12-15 18:10:00,99.81673431396484,True,first_test_anomaly_window
+realKnownCause/machine_temperature_system_failure.csv,2013-12-15 18:15:00,98.90925598144531,True,first_test_anomaly_window

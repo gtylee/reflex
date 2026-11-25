@@ -1,0 +1,68 @@
+{
+  "benchmark": "reflex-event-store-v1",
+  "machine_specific": true,
+  "environment": {
+    "platform": "macOS-26.5-arm64-arm-64bit-Mach-O",
+    "python": "3.13.3",
+    "duckdb": "1.5.6"
+  },
+  "model_calls": 0,
+  "measurements": [
+    {
+      "events": 1000,
+      "inserted": 1000,
+      "event_count_after_replay": 1000,
+      "write_seconds": 0.798612,
+      "events_per_second": 1252.172,
+      "batch_latency_p50_seconds": 0.755094,
+      "batch_latency_p95_seconds": 0.755094,
+      "sample_query_seconds": 0.01916,
+      "sample_events": 100,
+      "idempotent_replay_inserted": 0,
+      "replay_seconds": 0.028995,
+      "peak_python_bytes": 2060051,
+      "current_python_bytes": 2057524,
+      "duckdb_file_bytes": 1060864,
+      "batch_size": 2000
+    },
+    {
+      "events": 10000,
+      "inserted": 10000,
+      "event_count_after_replay": 10000,
+      "write_seconds": 8.405601,
+      "events_per_second": 1189.683,
+      "batch_latency_p50_seconds": 1.578015,
+      "batch_latency_p95_seconds": 1.631371,
+      "sample_query_seconds": 0.002623,
+      "sample_events": 100,
+      "idempotent_replay_inserted": 0,
+      "replay_seconds": 0.028803,
+      "peak_python_bytes": 8110431,
+      "current_python_bytes": 4146077,
+      "duckdb_file_bytes": 2633728,
+      "batch_size": 2000
+    },
+    {
+      "events": 100000,
+      "inserted": 100000,
+      "event_count_after_replay": 100000,
+      "write_seconds": 86.620678,
+      "events_per_second": 1154.459,
+      "batch_latency_p50_seconds": 1.626612,
+      "batch_latency_p95_seconds": 1.759727,
+      "sample_query_seconds": 0.011815,
+      "sample_events": 100,
+      "idempotent_replay_inserted": 0,
+      "replay_seconds": 0.032111,
+      "peak_python_bytes": 8077544,
+      "current_python_bytes": 4113025,
+      "duckdb_file_bytes": 30945280,
+      "batch_size": 2000
+    }
+  ],
+  "limitations": [
+    "Measures Python generation and DuckDB append together.",
+    "No SQL-only, vectorized, stateful, or agent baseline is included.",
+    "Results vary by hardware, runtime, filesystem, and DuckDB version."
+  ]
+}

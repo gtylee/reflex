@@ -1,0 +1,181 @@
+{
+  "title": "REFLEX synthetic pilot",
+  "runs": 3,
+  "seeds": [
+    11,
+    23,
+    37
+  ],
+  "entities": 40,
+  "days": 30,
+  "epochs": 12,
+  "metrics": {
+    "stat.autoencoder": {
+      "false_discovery_rate": {
+        "n": 3,
+        "mean": 0.037037037037037035,
+        "lower": 0.0,
+        "upper": 0.1111111111111111
+      },
+      "hidden_event_recall": {
+        "n": 3,
+        "mean": 0.6111111111111112,
+        "lower": 0.3333333333333333,
+        "upper": 0.7857142857142857
+      },
+      "mechanism_recovery_count": {
+        "n": 3,
+        "mean": 1.3333333333333333,
+        "lower": 1.0,
+        "upper": 2.0
+      }
+    },
+    "stat.isolation_forest": {
+      "false_discovery_rate": {
+        "n": 3,
+        "mean": 0.09764309764309764,
+        "lower": 0.0,
+        "upper": 0.1818181818181818
+      },
+      "hidden_event_recall": {
+        "n": 3,
+        "mean": 0.6944444444444445,
+        "lower": 0.5833333333333334,
+        "upper": 0.7857142857142857
+      },
+      "mechanism_recovery_count": {
+        "n": 3,
+        "mean": 1.3333333333333333,
+        "lower": 1.0,
+        "upper": 2.0
+      }
+    }
+  },
+  "wall_seconds": {
+    "n": 3,
+    "mean": 0.8283333333333333,
+    "lower": 0.614,
+    "upper": 1.251
+  },
+  "per_seed": [
+    {
+      "seed": 11,
+      "events": 4056,
+      "metrics": {
+        "stat.autoencoder": {
+          "predicted_anomalous_observations": 9,
+          "true_positive_observations": 9,
+          "false_discovery_rate": 0.0,
+          "hidden_events_recovered": 44,
+          "hidden_event_recall": 0.7857142857142857,
+          "mechanisms_recovered": [
+            "correlated_manual_approval",
+            "partner_value_relationship_shift"
+          ],
+          "mechanisms_total": [
+            "correlated_manual_approval",
+            "partner_value_relationship_shift"
+          ],
+          "mechanism_recovery_count": 2,
+          "truth_event_count": 56
+        },
+        "stat.isolation_forest": {
+          "predicted_anomalous_observations": 11,
+          "true_positive_observations": 9,
+          "false_discovery_rate": 0.18181818181818182,
+          "hidden_events_recovered": 44,
+          "hidden_event_recall": 0.7857142857142857,
+          "mechanisms_recovered": [
+            "correlated_manual_approval",
+            "partner_value_relationship_shift"
+          ],
+          "mechanisms_total": [
+            "correlated_manual_approval",
+            "partner_value_relationship_shift"
+          ],
+          "mechanism_recovery_count": 2,
+          "truth_event_count": 56
+        }
+      }
+    },
+    {
+      "seed": 23,
+      "events": 4144,
+      "metrics": {
+        "stat.autoencoder": {
+          "predicted_anomalous_observations": 4,
+          "true_positive_observations": 4,
+          "false_discovery_rate": 0.0,
+          "hidden_events_recovered": 20,
+          "hidden_event_recall": 0.3333333333333333,
+          "mechanisms_recovered": [
+            "correlated_manual_approval"
+          ],
+          "mechanisms_total": [
+            "correlated_manual_approval",
+            "partner_value_relationship_shift"
+          ],
+          "mechanism_recovery_count": 1,
+          "truth_event_count": 60
+        },
+        "stat.isolation_forest": {
+          "predicted_anomalous_observations": 7,
+          "true_positive_observations": 7,
+          "false_discovery_rate": 0.0,
+          "hidden_events_recovered": 35,
+          "hidden_event_recall": 0.5833333333333334,
+          "mechanisms_recovered": [
+            "correlated_manual_approval"
+          ],
+          "mechanisms_total": [
+            "correlated_manual_approval",
+            "partner_value_relationship_shift"
+          ],
+          "mechanism_recovery_count": 1,
+          "truth_event_count": 60
+        }
+      }
+    },
+    {
+      "seed": 37,
+      "events": 4168,
+      "metrics": {
+        "stat.autoencoder": {
+          "predicted_anomalous_observations": 9,
+          "true_positive_observations": 8,
+          "false_discovery_rate": 0.1111111111111111,
+          "hidden_events_recovered": 40,
+          "hidden_event_recall": 0.7142857142857143,
+          "mechanisms_recovered": [
+            "correlated_manual_approval"
+          ],
+          "mechanisms_total": [
+            "correlated_manual_approval",
+            "partner_value_relationship_shift"
+          ],
+          "mechanism_recovery_count": 1,
+          "truth_event_count": 56
+        },
+        "stat.isolation_forest": {
+          "predicted_anomalous_observations": 9,
+          "true_positive_observations": 8,
+          "false_discovery_rate": 0.1111111111111111,
+          "hidden_events_recovered": 40,
+          "hidden_event_recall": 0.7142857142857143,
+          "mechanisms_recovered": [
+            "correlated_manual_approval"
+          ],
+          "mechanisms_total": [
+            "correlated_manual_approval",
+            "partner_value_relationship_shift"
+          ],
+          "mechanism_recovery_count": 1,
+          "truth_event_count": 56
+        }
+      }
+    }
+  ],
+  "timing_scope": "Timing covers feature construction, model fitting, scoring, bounded investigations and evaluation. It excludes synthetic generation and event ingestion.",
+  "scoring_unit": "Each prediction covers one entity in a five-day window. It is counted as a true positive when the window contains a hidden event. Recall counts hidden events inside flagged windows.",
+  "interpretation": "This pilot measures REFLEX statistical lenses against hidden synthetic labels. It does not compare variants A\u2013E or establish that persistent state improves discovery."
+}

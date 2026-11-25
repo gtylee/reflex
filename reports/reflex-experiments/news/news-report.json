@@ -1,0 +1,128 @@
+{
+  "synthetic_only": true,
+  "story_event_count": 7,
+  "story_reactions": [
+    {
+      "event_id": "7c4675d0-7aee-5d3d-9d9d-32d0c00211bb",
+      "story_id": "story-rare-earth-001",
+      "revision": 0,
+      "action": "notify_portfolio_manager",
+      "score": 0.422,
+      "evidence": [
+        "7c4675d0-7aee-5d3d-9d9d-32d0c00211bb"
+      ],
+      "status": "unconfirmed"
+    },
+    {
+      "event_id": "625f1f74-a260-5ffb-bbf1-2a842cdeabd9",
+      "action": "duplicate_suppressed",
+      "score": 0.0,
+      "story_id": "story-rare-earth-001",
+      "revision": 1
+    },
+    {
+      "event_id": "bb9bc629-649b-57d8-a6c1-9d5c7a495b79",
+      "story_id": "story-rare-earth-001",
+      "revision": 2,
+      "action": "notify_portfolio_manager",
+      "score": 0.422,
+      "evidence": [
+        "bb9bc629-649b-57d8-a6c1-9d5c7a495b79"
+      ],
+      "status": "expanded"
+    },
+    {
+      "event_id": "9057968e-78b9-51ee-8a84-371181b98ef0",
+      "story_id": "story-rare-earth-001",
+      "revision": 3,
+      "action": "defer_and_monitor",
+      "score": 0.422,
+      "evidence": [
+        "9057968e-78b9-51ee-8a84-371181b98ef0"
+      ],
+      "status": "disputed"
+    },
+    {
+      "event_id": "bdddec6b-0e54-515b-ab0d-9271e92232a8",
+      "story_id": "story-rare-earth-001",
+      "revision": 4,
+      "action": "investigate",
+      "score": 0.422,
+      "evidence": [
+        "bdddec6b-0e54-515b-ab0d-9271e92232a8"
+      ],
+      "status": "confirmed"
+    },
+    {
+      "event_id": "5cdb2c27-9afa-52af-ae4f-cae332c07574",
+      "story_id": "story-rare-earth-001",
+      "revision": 5,
+      "action": "record_only",
+      "score": 0.176,
+      "evidence": [
+        "5cdb2c27-9afa-52af-ae4f-cae332c07574"
+      ],
+      "status": "corrected"
+    },
+    {
+      "event_id": "109cba4a-2217-558b-8f3f-d5de696b0313",
+      "story_id": "story-rare-earth-001",
+      "revision": 6,
+      "action": "reopen_and_reassess",
+      "score": 0.0,
+      "evidence": [
+        "109cba4a-2217-558b-8f3f-d5de696b0313"
+      ],
+      "status": "retracted"
+    }
+  ],
+  "portfolio_id": "portfolio-demo",
+  "feedback_event_count": 6,
+  "chronological_market_evaluation": {
+    "train_count": 840,
+    "test_count": 360,
+    "training_association": 0.014992401421404683,
+    "held_out_association": -0.0037264462654320995,
+    "held_out_mae": 0.017835902614641394,
+    "evaluation": "chronological; association is predictive evidence, not a causal estimate"
+  },
+  "market_outcome_event_count": 2400,
+  "state": {
+    "seen_revisions": [
+      "story-rare-earth-001:0",
+      "story-rare-earth-001:1",
+      "story-rare-earth-001:2",
+      "story-rare-earth-001:3",
+      "story-rare-earth-001:4",
+      "story-rare-earth-001:5",
+      "story-rare-earth-001:6"
+    ],
+    "seen_content": [
+      "china may restrict rare-earth exports",
+      "draft scope excludes two mineral grades",
+      "earlier duplicate attributed the measure to the wrong ministry",
+      "export licensing restrictions announced",
+      "officials deny a final decision",
+      "restrictions may cover processed minerals"
+    ],
+    "story_status": "retracted",
+    "portfolio_id": "portfolio-demo",
+    "notification_count": 2,
+    "notification_threshold": 0.39,
+    "feedback_counts": {
+      "pm.acknowledgement": 1,
+      "pm.disagreement": 1,
+      "pm.request_investigation": 1,
+      "portfolio.change": 1,
+      "notification.false_positive": 1,
+      "market.realised_outcome": 1
+    },
+    "feedback_version": 6,
+    "investigation_requested": false,
+    "rare_earths_exposure": 0.074,
+    "last_realised_outcome": 0.5697263575719601
+  },
+  "feedback_events_processed_in_event_time_order": 6,
+  "note": "Associations are predictive diagnostics, not causal estimates.",
+  "visualization": "reports/reflex-experiments/news/news-story-timeline.svg"
+}

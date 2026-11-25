@@ -1,0 +1,739 @@
+{
+  "benchmark": "Numenta Anomaly Benchmark, real-world series only",
+  "nab_repository_commit": "ea702d75cc2258d9d7dd35ca8e5e2539d71f3140",
+  "dataset_files": 47,
+  "series_by_category": {
+    "realAWSCloudwatch": 17,
+    "realAdExchange": 6,
+    "realKnownCause": 7,
+    "realTraffic": 7,
+    "realTweets": 10
+  },
+  "seeds": [
+    11,
+    23,
+    37
+  ],
+  "rows_scored": 273050,
+  "labeled_windows_scored": 101,
+  "protocol": {
+    "fit_fraction": 0.1,
+    "calibration_fraction": 0.05,
+    "test_fraction": 0.85,
+    "split": "chronological, independently within each series",
+    "test_threshold": 0.98,
+    "threshold_source": "98th percentile of each series/model calibration scores; no labels used for fitting or threshold selection",
+    "features": [
+      "value_z",
+      "change_z",
+      "trailing_mean_12",
+      "trailing_std_12"
+    ],
+    "trailing_window_points": 12,
+    "autoencoder_epochs": 35,
+    "isolation_forest_estimators": 160,
+    "nab_score": "official NAB window-scoring implementation; normalized against no-alert and ideal baselines on this real-only held-out subset"
+  },
+  "aggregate_scores": {
+    "autoencoder": {
+      "standard": {
+        "mean_normalized_score": -840.0919491036707,
+        "std_normalized_score": 36.82614843803712,
+        "per_seed": [
+          {
+            "seed": 11,
+            "raw_score": -1755.631587917492,
+            "null_score": -101.0,
+            "perfect_score": 101.0,
+            "normalized_score": -819.1245484740059
+          },
+          {
+            "seed": 23,
+            "raw_score": -1754.4458044200885,
+            "null_score": -101.0,
+            "perfect_score": 101.0,
+            "normalized_score": -818.5375269406379
+          },
+          {
+            "seed": 37,
+            "raw_score": -1883.879819230664,
+            "null_score": -101.0,
+            "perfect_score": 101.0,
+            "normalized_score": -882.6137718963683
+          }
+        ]
+      },
+      "reward_low_FP_rate": {
+        "mean_normalized_score": -1763.7734747315337,
+        "std_normalized_score": 74.16990966445361,
+        "per_seed": [
+          {
+            "seed": 11,
+            "raw_score": -3577.287983901788,
+            "null_score": -101.0,
+            "perfect_score": 101.0,
+            "normalized_score": -1720.9346454959345
+          },
+          {
+            "seed": 23,
+            "raw_score": -3577.355908523843,
+            "null_score": -101.0,
+            "perfect_score": 101.0,
+            "normalized_score": -1720.968271546457
+          },
+          {
+            "seed": 37,
+            "raw_score": -3836.823364447465,
+            "null_score": -101.0,
+            "perfect_score": 101.0,
+            "normalized_score": -1849.4175071522102
+          }
+        ]
+      },
+      "reward_low_FN_rate": {
+        "mean_normalized_score": -531.1284061131182,
+        "std_normalized_score": 24.457373337807184,
+        "per_seed": [
+          {
+            "seed": 11,
+            "raw_score": -1769.631587917492,
+            "null_score": -202.0,
+            "perfect_score": 101.0,
+            "normalized_score": -517.3701610288751
+          },
+          {
+            "seed": 23,
+            "raw_score": -1767.4458044200885,
+            "null_score": -202.0,
+            "perfect_score": 101.0,
+            "normalized_score": -516.6487803366629
+          },
+          {
+            "seed": 37,
+            "raw_score": -1896.879819230664,
+            "null_score": -202.0,
+            "perfect_score": 101.0,
+            "normalized_score": -559.3662769738165
+          }
+        ]
+      }
+    },
+    "isolation_forest": {
+      "standard": {
+        "mean_normalized_score": -804.2964541892626,
+        "std_normalized_score": 20.278223978317648,
+        "per_seed": [
+          {
+            "seed": 11,
+            "raw_score": -1769.9969226940111,
+            "null_score": -101.0,
+            "perfect_score": 101.0,
+            "normalized_score": -826.2361003435698
+          },
+          {
+            "seed": 23,
+            "raw_score": -1717.831222234053,
+            "null_score": -101.0,
+            "perfect_score": 101.0,
+            "normalized_score": -800.4114961554718
+          },
+          {
+            "seed": 37,
+            "raw_score": -1689.2083674588675,
+            "null_score": -101.0,
+            "perfect_score": 101.0,
+            "normalized_score": -786.2417660687463
+          }
+        ]
+      },
+      "reward_low_FP_rate": {
+        "mean_normalized_score": -1696.0797669211086,
+        "std_normalized_score": 40.39970774639886,
+        "per_seed": [
+          {
+            "seed": 11,
+            "raw_score": -3614.9729744800507,
+            "null_score": -101.0,
+            "perfect_score": 101.0,
+            "normalized_score": -1739.5905814257676
+          },
+          {
+            "seed": 23,
+            "raw_score": -3512.5637123851225,
+            "null_score": -101.0,
+            "perfect_score": 101.0,
+            "normalized_score": -1688.8929269233279
+          },
+          {
+            "seed": 37,
+            "raw_score": -3453.7067006767456,
+            "null_score": -101.0,
+            "perfect_score": 101.0,
+            "normalized_score": -1659.7557924142304
+          }
+        ]
+      },
+      "reward_low_FN_rate": {
+        "mean_normalized_score": -506.054621824745,
+        "std_normalized_score": 13.55173306840045,
+        "per_seed": [
+          {
+            "seed": 11,
+            "raw_score": -1779.9969226940111,
+            "null_score": -202.0,
+            "perfect_score": 101.0,
+            "normalized_score": -520.7910635953832
+          },
+          {
+            "seed": 23,
+            "raw_score": -1726.831222234053,
+            "null_score": -202.0,
+            "perfect_score": 101.0,
+            "normalized_score": -503.24462780001755
+          },
+          {
+            "seed": 37,
+            "raw_score": -1699.2083674588675,
+            "null_score": -202.0,
+            "perfect_score": 101.0,
+            "normalized_score": -494.12817407883415
+          }
+        ]
+      }
+    }
+  },
+  "series": {
+    "realAWSCloudwatch/ec2_cpu_utilization_24ae8d.csv": {
+      "rows": 4032,
+      "train_points": 403,
+      "calibration_points": 201,
+      "test_points": 3428,
+      "all_labeled_windows": 2,
+      "test_labeled_windows": 2,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2014-02-14 14:30:00",
+      "last_timestamp": "2014-02-28 14:25:00"
+    },
+    "realAWSCloudwatch/ec2_cpu_utilization_53ea38.csv": {
+      "rows": 4032,
+      "train_points": 403,
+      "calibration_points": 201,
+      "test_points": 3428,
+      "all_labeled_windows": 2,
+      "test_labeled_windows": 2,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2014-02-14 14:30:00",
+      "last_timestamp": "2014-02-28 14:25:00"
+    },
+    "realAWSCloudwatch/ec2_cpu_utilization_5f5533.csv": {
+      "rows": 4032,
+      "train_points": 403,
+      "calibration_points": 201,
+      "test_points": 3428,
+      "all_labeled_windows": 2,
+      "test_labeled_windows": 2,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2014-02-14 14:27:00",
+      "last_timestamp": "2014-02-28 14:22:00"
+    },
+    "realAWSCloudwatch/ec2_cpu_utilization_77c1ca.csv": {
+      "rows": 4032,
+      "train_points": 403,
+      "calibration_points": 201,
+      "test_points": 3428,
+      "all_labeled_windows": 1,
+      "test_labeled_windows": 1,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2014-04-02 14:25:00",
+      "last_timestamp": "2014-04-16 14:20:00"
+    },
+    "realAWSCloudwatch/ec2_cpu_utilization_825cc2.csv": {
+      "rows": 4032,
+      "train_points": 403,
+      "calibration_points": 201,
+      "test_points": 3428,
+      "all_labeled_windows": 1,
+      "test_labeled_windows": 1,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2014-04-10 00:04:00",
+      "last_timestamp": "2014-04-24 00:09:00"
+    },
+    "realAWSCloudwatch/ec2_cpu_utilization_ac20cd.csv": {
+      "rows": 4032,
+      "train_points": 403,
+      "calibration_points": 201,
+      "test_points": 3428,
+      "all_labeled_windows": 1,
+      "test_labeled_windows": 1,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2014-04-02 14:29:00",
+      "last_timestamp": "2014-04-16 14:49:00"
+    },
+    "realAWSCloudwatch/ec2_cpu_utilization_c6585a.csv": {
+      "rows": 4032,
+      "train_points": 403,
+      "calibration_points": 201,
+      "test_points": 3428,
+      "all_labeled_windows": 0,
+      "test_labeled_windows": 0,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2014-04-02 14:29:00",
+      "last_timestamp": "2014-04-16 14:24:00"
+    },
+    "realAWSCloudwatch/ec2_cpu_utilization_fe7f93.csv": {
+      "rows": 4032,
+      "train_points": 403,
+      "calibration_points": 201,
+      "test_points": 3428,
+      "all_labeled_windows": 3,
+      "test_labeled_windows": 3,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2014-02-14 14:27:00",
+      "last_timestamp": "2014-02-28 14:22:00"
+    },
+    "realAWSCloudwatch/ec2_disk_write_bytes_1ef3de.csv": {
+      "rows": 4730,
+      "train_points": 473,
+      "calibration_points": 236,
+      "test_points": 4021,
+      "all_labeled_windows": 1,
+      "test_labeled_windows": 1,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2014-03-01 17:34:00",
+      "last_timestamp": "2014-03-18 03:39:00"
+    },
+    "realAWSCloudwatch/ec2_disk_write_bytes_c0d644.csv": {
+      "rows": 4032,
+      "train_points": 403,
+      "calibration_points": 201,
+      "test_points": 3428,
+      "all_labeled_windows": 3,
+      "test_labeled_windows": 3,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2014-04-02 14:25:00",
+      "last_timestamp": "2014-04-16 14:20:00"
+    },
+    "realAWSCloudwatch/ec2_network_in_257a54.csv": {
+      "rows": 4032,
+      "train_points": 403,
+      "calibration_points": 201,
+      "test_points": 3428,
+      "all_labeled_windows": 1,
+      "test_labeled_windows": 1,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2014-04-10 00:04:00",
+      "last_timestamp": "2014-04-24 00:09:00"
+    },
+    "realAWSCloudwatch/ec2_network_in_5abac7.csv": {
+      "rows": 4730,
+      "train_points": 473,
+      "calibration_points": 236,
+      "test_points": 4021,
+      "all_labeled_windows": 2,
+      "test_labeled_windows": 2,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2014-03-01 17:36:00",
+      "last_timestamp": "2014-03-18 03:41:00"
+    },
+    "realAWSCloudwatch/elb_request_count_8c0756.csv": {
+      "rows": 4032,
+      "train_points": 403,
+      "calibration_points": 201,
+      "test_points": 3428,
+      "all_labeled_windows": 2,
+      "test_labeled_windows": 2,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2014-04-10 00:04:00",
+      "last_timestamp": "2014-04-24 00:39:00"
+    },
+    "realAWSCloudwatch/grok_asg_anomaly.csv": {
+      "rows": 4621,
+      "train_points": 462,
+      "calibration_points": 231,
+      "test_points": 3928,
+      "all_labeled_windows": 3,
+      "test_labeled_windows": 3,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2014-01-16 00:00:00",
+      "last_timestamp": "2014-02-01 01:00:00"
+    },
+    "realAWSCloudwatch/iio_us-east-1_i-a2eb1cd9_NetworkIn.csv": {
+      "rows": 1243,
+      "train_points": 124,
+      "calibration_points": 62,
+      "test_points": 1057,
+      "all_labeled_windows": 2,
+      "test_labeled_windows": 2,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2013-10-09 16:25:00",
+      "last_timestamp": "2013-10-13 23:55:00"
+    },
+    "realAWSCloudwatch/rds_cpu_utilization_cc0c53.csv": {
+      "rows": 4032,
+      "train_points": 403,
+      "calibration_points": 201,
+      "test_points": 3428,
+      "all_labeled_windows": 2,
+      "test_labeled_windows": 2,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2014-02-14 14:30:00",
+      "last_timestamp": "2014-02-28 14:30:00"
+    },
+    "realAWSCloudwatch/rds_cpu_utilization_e47b3b.csv": {
+      "rows": 4032,
+      "train_points": 403,
+      "calibration_points": 201,
+      "test_points": 3428,
+      "all_labeled_windows": 2,
+      "test_labeled_windows": 2,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2014-04-10 00:02:00",
+      "last_timestamp": "2014-04-23 23:57:00"
+    },
+    "realAdExchange/exchange-2_cpc_results.csv": {
+      "rows": 1624,
+      "train_points": 162,
+      "calibration_points": 81,
+      "test_points": 1381,
+      "all_labeled_windows": 1,
+      "test_labeled_windows": 1,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2011-07-01 00:00:01",
+      "last_timestamp": "2011-09-07 15:00:01"
+    },
+    "realAdExchange/exchange-2_cpm_results.csv": {
+      "rows": 1624,
+      "train_points": 162,
+      "calibration_points": 81,
+      "test_points": 1381,
+      "all_labeled_windows": 2,
+      "test_labeled_windows": 2,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2011-07-01 00:00:01",
+      "last_timestamp": "2011-09-07 15:00:01"
+    },
+    "realAdExchange/exchange-3_cpc_results.csv": {
+      "rows": 1538,
+      "train_points": 153,
+      "calibration_points": 77,
+      "test_points": 1308,
+      "all_labeled_windows": 3,
+      "test_labeled_windows": 3,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2011-07-01 00:15:01",
+      "last_timestamp": "2011-09-07 14:15:01"
+    },
+    "realAdExchange/exchange-3_cpm_results.csv": {
+      "rows": 1538,
+      "train_points": 153,
+      "calibration_points": 77,
+      "test_points": 1308,
+      "all_labeled_windows": 1,
+      "test_labeled_windows": 1,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2011-07-01 00:15:01",
+      "last_timestamp": "2011-09-07 14:15:01"
+    },
+    "realAdExchange/exchange-4_cpc_results.csv": {
+      "rows": 1643,
+      "train_points": 164,
+      "calibration_points": 82,
+      "test_points": 1397,
+      "all_labeled_windows": 3,
+      "test_labeled_windows": 3,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2011-07-01 00:15:01",
+      "last_timestamp": "2011-09-07 14:15:01"
+    },
+    "realAdExchange/exchange-4_cpm_results.csv": {
+      "rows": 1643,
+      "train_points": 164,
+      "calibration_points": 82,
+      "test_points": 1397,
+      "all_labeled_windows": 4,
+      "test_labeled_windows": 4,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2011-07-01 00:15:01",
+      "last_timestamp": "2011-09-07 14:15:01"
+    },
+    "realKnownCause/ambient_temperature_system_failure.csv": {
+      "rows": 7267,
+      "train_points": 726,
+      "calibration_points": 364,
+      "test_points": 6177,
+      "all_labeled_windows": 2,
+      "test_labeled_windows": 2,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2013-07-04 00:00:00",
+      "last_timestamp": "2014-05-28 15:00:00"
+    },
+    "realKnownCause/cpu_utilization_asg_misconfiguration.csv": {
+      "rows": 18050,
+      "train_points": 1805,
+      "calibration_points": 902,
+      "test_points": 15343,
+      "all_labeled_windows": 1,
+      "test_labeled_windows": 1,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2014-05-14 01:14:00",
+      "last_timestamp": "2014-07-15 17:19:00"
+    },
+    "realKnownCause/ec2_request_latency_system_failure.csv": {
+      "rows": 4032,
+      "train_points": 403,
+      "calibration_points": 201,
+      "test_points": 3428,
+      "all_labeled_windows": 3,
+      "test_labeled_windows": 3,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2014-03-07 03:41:00",
+      "last_timestamp": "2014-03-21 03:41:00"
+    },
+    "realKnownCause/machine_temperature_system_failure.csv": {
+      "rows": 22695,
+      "train_points": 2269,
+      "calibration_points": 1135,
+      "test_points": 19291,
+      "all_labeled_windows": 4,
+      "test_labeled_windows": 3,
+      "windows_before_or_overlapping_calibration": 1,
+      "first_timestamp": "2013-12-02 21:15:00",
+      "last_timestamp": "2014-02-19 15:25:00"
+    },
+    "realKnownCause/nyc_taxi.csv": {
+      "rows": 10320,
+      "train_points": 1032,
+      "calibration_points": 516,
+      "test_points": 8772,
+      "all_labeled_windows": 5,
+      "test_labeled_windows": 5,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2014-07-01 00:00:00",
+      "last_timestamp": "2015-01-31 23:30:00"
+    },
+    "realKnownCause/rogue_agent_key_hold.csv": {
+      "rows": 1882,
+      "train_points": 188,
+      "calibration_points": 94,
+      "test_points": 1600,
+      "all_labeled_windows": 2,
+      "test_labeled_windows": 2,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2014-07-06 20:10:00",
+      "last_timestamp": "2014-07-25 08:55:00"
+    },
+    "realKnownCause/rogue_agent_key_updown.csv": {
+      "rows": 5315,
+      "train_points": 531,
+      "calibration_points": 266,
+      "test_points": 4518,
+      "all_labeled_windows": 2,
+      "test_labeled_windows": 2,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2014-07-06 20:10:00",
+      "last_timestamp": "2014-07-25 08:55:00"
+    },
+    "realTraffic/TravelTime_387.csv": {
+      "rows": 2500,
+      "train_points": 250,
+      "calibration_points": 125,
+      "test_points": 2125,
+      "all_labeled_windows": 3,
+      "test_labeled_windows": 3,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2015-07-10 14:24:00",
+      "last_timestamp": "2015-09-17 17:10:00"
+    },
+    "realTraffic/TravelTime_451.csv": {
+      "rows": 2162,
+      "train_points": 216,
+      "calibration_points": 108,
+      "test_points": 1838,
+      "all_labeled_windows": 1,
+      "test_labeled_windows": 1,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2015-07-28 11:56:00",
+      "last_timestamp": "2015-09-17 17:09:00"
+    },
+    "realTraffic/occupancy_6005.csv": {
+      "rows": 2380,
+      "train_points": 238,
+      "calibration_points": 119,
+      "test_points": 2023,
+      "all_labeled_windows": 1,
+      "test_labeled_windows": 1,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2015-09-01 13:45:00",
+      "last_timestamp": "2015-09-17 16:24:00"
+    },
+    "realTraffic/occupancy_t4013.csv": {
+      "rows": 2500,
+      "train_points": 250,
+      "calibration_points": 125,
+      "test_points": 2125,
+      "all_labeled_windows": 2,
+      "test_labeled_windows": 2,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2015-09-01 11:30:00",
+      "last_timestamp": "2015-09-17 16:24:00"
+    },
+    "realTraffic/speed_6005.csv": {
+      "rows": 2500,
+      "train_points": 250,
+      "calibration_points": 125,
+      "test_points": 2125,
+      "all_labeled_windows": 1,
+      "test_labeled_windows": 1,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2015-08-31 18:22:00",
+      "last_timestamp": "2015-09-17 16:24:00"
+    },
+    "realTraffic/speed_7578.csv": {
+      "rows": 1127,
+      "train_points": 112,
+      "calibration_points": 57,
+      "test_points": 958,
+      "all_labeled_windows": 4,
+      "test_labeled_windows": 4,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2015-09-08 11:39:00",
+      "last_timestamp": "2015-09-17 14:05:00"
+    },
+    "realTraffic/speed_t4013.csv": {
+      "rows": 2495,
+      "train_points": 249,
+      "calibration_points": 125,
+      "test_points": 2121,
+      "all_labeled_windows": 2,
+      "test_labeled_windows": 2,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2015-09-01 11:25:00",
+      "last_timestamp": "2015-09-17 16:19:00"
+    },
+    "realTweets/Twitter_volume_AAPL.csv": {
+      "rows": 15902,
+      "train_points": 1590,
+      "calibration_points": 795,
+      "test_points": 13517,
+      "all_labeled_windows": 4,
+      "test_labeled_windows": 3,
+      "windows_before_or_overlapping_calibration": 1,
+      "first_timestamp": "2015-02-26 21:42:53",
+      "last_timestamp": "2015-04-23 02:47:53"
+    },
+    "realTweets/Twitter_volume_AMZN.csv": {
+      "rows": 15831,
+      "train_points": 1583,
+      "calibration_points": 791,
+      "test_points": 13457,
+      "all_labeled_windows": 4,
+      "test_labeled_windows": 3,
+      "windows_before_or_overlapping_calibration": 1,
+      "first_timestamp": "2015-02-26 21:42:53",
+      "last_timestamp": "2015-04-22 20:52:53"
+    },
+    "realTweets/Twitter_volume_CRM.csv": {
+      "rows": 15902,
+      "train_points": 1590,
+      "calibration_points": 795,
+      "test_points": 13517,
+      "all_labeled_windows": 3,
+      "test_labeled_windows": 3,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2015-02-26 21:42:53",
+      "last_timestamp": "2015-04-23 02:47:53"
+    },
+    "realTweets/Twitter_volume_CVS.csv": {
+      "rows": 15853,
+      "train_points": 1585,
+      "calibration_points": 792,
+      "test_points": 13476,
+      "all_labeled_windows": 3,
+      "test_labeled_windows": 2,
+      "windows_before_or_overlapping_calibration": 1,
+      "first_timestamp": "2015-02-26 21:42:53",
+      "last_timestamp": "2015-04-22 22:42:53"
+    },
+    "realTweets/Twitter_volume_FB.csv": {
+      "rows": 15833,
+      "train_points": 1583,
+      "calibration_points": 791,
+      "test_points": 13459,
+      "all_labeled_windows": 2,
+      "test_labeled_windows": 2,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2015-02-26 21:42:53",
+      "last_timestamp": "2015-04-22 21:02:53"
+    },
+    "realTweets/Twitter_volume_GOOG.csv": {
+      "rows": 15842,
+      "train_points": 1584,
+      "calibration_points": 792,
+      "test_points": 13466,
+      "all_labeled_windows": 3,
+      "test_labeled_windows": 3,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2015-02-26 21:42:53",
+      "last_timestamp": "2015-04-22 21:47:53"
+    },
+    "realTweets/Twitter_volume_IBM.csv": {
+      "rows": 15893,
+      "train_points": 1589,
+      "calibration_points": 794,
+      "test_points": 13510,
+      "all_labeled_windows": 2,
+      "test_labeled_windows": 2,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2015-02-26 21:42:53",
+      "last_timestamp": "2015-04-23 02:02:53"
+    },
+    "realTweets/Twitter_volume_KO.csv": {
+      "rows": 15851,
+      "train_points": 1585,
+      "calibration_points": 792,
+      "test_points": 13474,
+      "all_labeled_windows": 3,
+      "test_labeled_windows": 3,
+      "windows_before_or_overlapping_calibration": 0,
+      "first_timestamp": "2015-02-26 21:42:53",
+      "last_timestamp": "2015-04-22 22:32:53"
+    },
+    "realTweets/Twitter_volume_PFE.csv": {
+      "rows": 15858,
+      "train_points": 1585,
+      "calibration_points": 793,
+      "test_points": 13480,
+      "all_labeled_windows": 4,
+      "test_labeled_windows": 2,
+      "windows_before_or_overlapping_calibration": 2,
+      "first_timestamp": "2015-02-26 21:42:53",
+      "last_timestamp": "2015-04-22 23:07:53"
+    },
+    "realTweets/Twitter_volume_UPS.csv": {
+      "rows": 15866,
+      "train_points": 1586,
+      "calibration_points": 793,
+      "test_points": 13487,
+      "all_labeled_windows": 5,
+      "test_labeled_windows": 2,
+      "windows_before_or_overlapping_calibration": 3,
+      "first_timestamp": "2015-02-26 21:42:53",
+      "last_timestamp": "2015-04-22 23:47:53"
+    }
+  },
+  "alerts": {
+    "alert_points": 132645,
+    "inside_labeled_windows": 26994
+  },
+  "limits": [
+    "This is a real-world univariate time-series benchmark, not an FX transaction benchmark.",
+    "NAB labels are used only by the scorer after scores are frozen.",
+    "Scores use a fixed calibration-only 98th-percentile threshold; they are not directly comparable with published NAB leaderboard results that optimize thresholds against labels.",
+    "Rows from NAB's artificial series are excluded."
+  ],
+  "files": {
+    "per_series_scores": "per-series-scores.csv",
+    "alerts": "alerts.csv",
+    "sample_data": "sample-data.csv"
+  }
+}

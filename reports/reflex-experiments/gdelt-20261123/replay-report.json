@@ -1,0 +1,28 @@
+{
+  "experiment": "gdelt-public-event-replay-v1",
+  "dataset": "GDELT Events 2.0",
+  "date": "20261123",
+  "source_url": "https://data.gdeltproject.org/events/20261123.export.CSV.zip",
+  "archive_sha256": "9a13ba8478ce28061fe26ed646dc25c70faeeea4f9c49407f28c6b3c2050d5b9",
+  "archive_bytes": 6242990,
+  "parsed_row_count": 101301,
+  "selected_event_count": 10000,
+  "downloaded_at": "2026-11-24T20:44:35.230362+00:00",
+  "attribution": "Data from the GDELT Project (www.gdeltproject.org).",
+  "replay_event_count": 10000,
+  "inserted_event_count": 10000,
+  "chronological_after_replay": true,
+  "event_stream_sha256": "9e44513e25848b584f0171c9391305ab7f36853e2d1bf20881c37d4fd319dbc1",
+  "duplicate_replay_inserted": 0,
+  "batch_size": 2000,
+  "write_seconds": 5.8587407898157835,
+  "events_per_second": 1706.8514137684576,
+  "database_bytes": 2633728,
+  "event_file": "reports/reflex-experiments/gdelt-20261123/events.jsonl",
+  "database_file": "reports/reflex-experiments/gdelt-20261123/replay-20261123-9a13ba84-20261124T204435Z.duckdb",
+  "report_file": "reports/reflex-experiments/gdelt-20261123/replay-report.json",
+  "limitations": [
+    "GDELT Events rows contain structured event metadata, not complete article text.",
+    "This is an ingestion/replay measurement, not a relevance or market-prediction score."
+  ]
+}

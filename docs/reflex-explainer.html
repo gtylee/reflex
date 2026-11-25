@@ -1,0 +1,905 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A practical, plain-language guide to REFLEX events, Lenses, Reactions, policies, experiments, and command-line workflows.">
+  <title>REFLEX: a practical guide</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --page: #f4f6f8;
+      --surface: #ffffff;
+      --ink: #17212b;
+      --muted: #526170;
+      --line: #cbd5df;
+      --accent: #1458a6;
+      --accent-soft: #e7f0fb;
+      --code: #edf2f6;
+      --good: #236447;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --page: #101820;
+        --surface: #18232d;
+        --ink: #edf3f8;
+        --muted: #b5c2ce;
+        --line: #394754;
+        --accent: #9ac8ff;
+        --accent-soft: #20354b;
+        --code: #111a22;
+        --good: #8ad1aa;
+      }
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--ink);
+      font: 16px/1.6 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main { width: min(1060px, calc(100% - 32px)); margin: 0 auto; padding: 38px 0 60px; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 780px; margin-bottom: 10px; font-size: clamp(2.2rem, 6vw, 3.6rem); line-height: 1.08; letter-spacing: -0.035em; }
+    h2 { margin: 0 0 14px; font-size: clamp(1.4rem, 3vw, 1.8rem); line-height: 1.2; }
+    h3 { margin: 0 0 7px; font-size: 1.06rem; line-height: 1.3; }
+    p:last-child { margin-bottom: 0; }
+    a { color: var(--accent); }
+    code, pre { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    code { font-size: 0.92em; overflow-wrap: anywhere; }
+    pre {
+      margin: 12px 0 0;
+      padding: 14px 16px;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: var(--code);
+      color: var(--ink);
+      font-size: 0.86rem;
+      line-height: 1.55;
+      tab-size: 2;
+    }
+    pre code { font-size: inherit; }
+    .kicker { margin-bottom: 7px; color: var(--accent); font-size: 0.8rem; font-weight: 750; letter-spacing: 0.09em; text-transform: uppercase; }
+    .lead { max-width: 760px; margin-bottom: 20px; color: var(--muted); font-size: 1.15rem; }
+    .intro-note, .note {
+      padding: 15px 18px;
+      border-left: 4px solid var(--accent);
+      border-radius: 8px;
+      background: var(--accent-soft);
+    }
+    .intro-note { max-width: 850px; }
+    .intro-note p, .note p { margin: 0; }
+    .top-nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 26px 0 38px; }
+    .top-nav a, .links a {
+      display: inline-block;
+      padding: 8px 11px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      text-decoration: none;
+      font-size: 0.92rem;
+    }
+    section { margin-top: 48px; scroll-margin-top: 18px; }
+    .section-intro { max-width: 780px; margin-bottom: 18px; color: var(--muted); }
+    .two-col, .three-col, .terms, .trace, .timeline {
+      display: grid;
+      gap: 12px;
+    }
+    .two-col { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .three-col { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .terms { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .card, .term, .trace-item, .timeline-item, .command-card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--surface);
+    }
+    .card, .term, .command-card { padding: 17px; }
+    .card p, .term p { margin-bottom: 0; color: var(--muted); }
+    .card .sample { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); color: var(--ink); font-size: 0.92rem; }
+    .step-tabs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin: 22px 0 12px; }
+    .step-tab {
+      min-height: 70px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: var(--surface);
+      color: var(--ink);
+      cursor: pointer;
+      text-align: left;
+      font: inherit;
+      font-weight: 700;
+    }
+    .step-tab[aria-selected="true"] { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+    .step-tab:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+    .tab-number { display: block; margin-bottom: 3px; color: var(--accent); font-size: 0.76rem; letter-spacing: 0.07em; }
+    .step-panel { padding: clamp(17px, 3vw, 28px); border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+    .step-panel[hidden] { display: none; }
+    .step-panel > h3 { margin-bottom: 8px; font-size: clamp(1.25rem, 3vw, 1.65rem); }
+    .step-panel > p { max-width: 820px; color: var(--muted); }
+    .step-panel .card { height: 100%; }
+    .step-panel .card h4 { margin: 0 0 7px; font-size: 1rem; }
+    .step-panel .card p { color: var(--muted); }
+    .step-panel .card p + p { margin-top: 10px; }
+    .step-panel .table-wrap { margin: 14px 0; }
+    .step-panel details { margin-top: 14px; }
+    .checklist { padding-left: 1.25rem; color: var(--muted); }
+    .checklist li + li { margin-top: 5px; }
+    .record-chain { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; margin: 14px 0; }
+    .record-chain span { padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--page); text-align: center; font-size: 0.88rem; }
+    .record-chain b { color: var(--accent); }
+    .trace { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .trace-item { display: flex; gap: 13px; padding: 14px; }
+    .trace-number { flex: 0 0 28px; color: var(--accent); font-weight: 800; }
+    .trace-item p { margin: 0; color: var(--muted); }
+    .timeline { grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 18px 0; }
+    .timeline-item { padding: 14px; }
+    .timeline-item strong { display: block; margin-bottom: 5px; }
+    .timeline-item span { color: var(--muted); font-size: 0.92rem; }
+    .timeline-item:last-child:nth-child(3n + 1) { grid-column: 1 / -1; }
+    .caption { margin-top: 10px; color: var(--muted); font-size: 0.9rem; }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    th, td { padding: 11px 13px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { background: var(--accent-soft); font-size: 0.9rem; }
+    tr:last-child td { border-bottom: 0; }
+    td { color: var(--muted); }
+    td:first-child { color: var(--ink); font-weight: 650; }
+    .lane { padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+    .lane .label { display: inline-block; margin-bottom: 8px; color: var(--accent); font-size: 0.8rem; font-weight: 750; letter-spacing: 0.08em; text-transform: uppercase; }
+    .lane h3 { font-size: 1.18rem; }
+    .lane p { margin-bottom: 0; color: var(--muted); }
+    .sequence { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
+    .sequence span { padding: 6px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--page); font-size: 0.88rem; }
+    .sequence b { color: var(--accent); }
+    .good { color: var(--good); font-weight: 700; }
+    details { margin: 10px 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+    summary { padding: 13px 15px; cursor: pointer; font-weight: 700; }
+    details[open] summary { border-bottom: 1px solid var(--line); }
+    .details-body { padding: 14px 16px 16px; }
+    .details-body p { color: var(--muted); }
+    .details-body p:last-child { margin-bottom: 0; }
+    .details-body pre { margin-top: 8px; }
+    .command-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .command-card p { margin-bottom: 8px; color: var(--muted); }
+    .command-card pre { margin: 0; }
+    .links { display: flex; flex-wrap: wrap; gap: 9px; }
+    footer { margin-top: 50px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.9rem; }
+    @media (max-width: 900px) {
+      .step-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .three-col, .terms, .timeline { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .timeline-item:last-child:nth-child(3n + 1) { grid-column: auto; }
+    }
+    @media (max-width: 620px) {
+      main { width: min(100% - 24px, 500px); padding-top: 26px; }
+      .two-col, .three-col, .terms, .trace, .timeline, .command-grid { grid-template-columns: 1fr; }
+      .step-tabs { display: flex; overflow-x: auto; padding: 2px 2px 10px; scroll-snap-type: x mandatory; }
+      .step-tab { flex: 0 0 148px; scroll-snap-align: start; }
+      .record-chain { grid-template-columns: 1fr; }
+      .record-chain b { transform: rotate(90deg); }
+      .timeline-item:last-child:nth-child(3n + 1) { grid-column: auto; }
+      th, td { min-width: 130px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header id="top">
+      <p class="kicker">A practical guide</p>
+      <h1>REFLEX turns events into reviewable next steps</h1>
+      <p class="lead">It keeps the original events, the method that found a pattern, the policy decision, and any action result connected so a person can inspect the full trail.</p>
+      <div class="intro-note">
+        <p><strong>Start with two ideas:</strong> a Lens looks for a pattern; a Reaction describes what workflow follows an event. A finding can inform a decision, but it does not grant permission to act.</p>
+      </div>
+    </header>
+
+    <nav class="top-nav" aria-label="Guide sections">
+      <a href="#overview">Overview</a>
+      <a href="#paths">Two workflows</a>
+      <a href="#story-example">Worked example</a>
+      <a href="#discovery">Discovery</a>
+      <a href="#flags">Flags and rules</a>
+      <a href="#safety">Safety and replay</a>
+      <a href="#commands">Commands</a>
+      <a href="#experiments">Experiments</a>
+      <a href="#data">Data sources</a>
+      <a href="#extend">Extend REFLEX</a>
+      <a href="#troubleshoot">Troubleshooting</a>
+      <a href="#code-map">Code map</a>
+    </nav>
+
+    <section id="paths" aria-labelledby="paths-title" style="margin-top:0">
+      <h2 id="paths-title">Two workflows, one evidence trail</h2>
+      <div class="two-col">
+        <article class="lane">
+          <span class="label">Reaction workflow</span>
+          <h3>What should follow this event?</h3>
+          <p>A Reaction is a graph of registered, versioned functions. It can inspect event types and state, emit observations, branch along declared edges, and request bounded actions.</p>
+          <div class="sequence" aria-label="Reaction path">
+            <span>event</span><b aria-hidden="true">→</b><span>function graph</span><b aria-hidden="true">→</b><span>observation or action</span>
+          </div>
+        </article>
+        <article class="lane">
+          <span class="label">Discovery workflow</span>
+          <h3>What pattern is present in this history?</h3>
+          <p>The discovery path builds time-aware features, fits or applies Lenses, calibrates thresholds, and scores later events or windows. Its policy can route selected findings to bounded local investigation.</p>
+          <div class="sequence" aria-label="Discovery path">
+            <span>event history</span><b aria-hidden="true">→</b><span>features and Lenses</span><b aria-hidden="true">→</b><span>scored observations</span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="overview" aria-labelledby="overview-title">
+      <h2 id="overview-title">The six stages</h2>
+      <p class="section-intro">This is the common shape of a REFLEX run. Choose a tab to explore a step; the left and right arrow keys move between tabs. Some workflows stop after recording an observation, while others continue through policy and a registered action.</p>
+      <div class="step-tabs" role="tablist" aria-label="REFLEX workflow steps" aria-orientation="horizontal">
+        <button class="step-tab" id="step-tab-1" type="button" role="tab" aria-selected="true" aria-controls="step-panel-1" tabindex="0"><span class="tab-number">STEP 1</span>Events arrive</button>
+        <button class="step-tab" id="step-tab-2" type="button" role="tab" aria-selected="false" aria-controls="step-panel-2" tabindex="-1"><span class="tab-number">STEP 2</span>Lens or function</button>
+        <button class="step-tab" id="step-tab-3" type="button" role="tab" aria-selected="false" aria-controls="step-panel-3" tabindex="-1"><span class="tab-number">STEP 3</span>Evidence is linked</button>
+        <button class="step-tab" id="step-tab-4" type="button" role="tab" aria-selected="false" aria-controls="step-panel-4" tabindex="-1"><span class="tab-number">STEP 4</span>Policy checks</button>
+        <button class="step-tab" id="step-tab-5" type="button" role="tab" aria-selected="false" aria-controls="step-panel-5" tabindex="-1"><span class="tab-number">STEP 5</span>A safe step follows</button>
+        <button class="step-tab" id="step-tab-6" type="button" role="tab" aria-selected="false" aria-controls="step-panel-6" tabindex="-1"><span class="tab-number">STEP 6</span>The result is saved</button>
+      </div>
+      <noscript><p class="caption">JavaScript is needed to switch tabs. Without it, all six step explanations are shown one after another.</p><style>.step-panel[hidden] { display: block !important; margin-top: 12px; }</style></noscript>
+
+      <div class="step-panel" id="step-panel-1" role="tabpanel" aria-labelledby="step-tab-1" tabindex="0">
+        <p class="kicker">Step 1 of 6 · Input</p>
+        <h3>Events arrive: keep a reliable account of what happened</h3>
+        <p>An event is one dated record from a source. REFLEX keeps its identity, event time, source, entity references, and data so later work can cite the exact input. New findings are written as additional records; the original input is not rewritten.</p>
+        <div class="two-col">
+          <article class="card">
+            <h4>What the fields mean</h4>
+            <ul class="checklist">
+              <li><code>event_id</code> identifies this record. Identical IDs and content are deduplicated; conflicting content under the same ID is rejected.</li>
+              <li><code>event_type</code> tells a workflow what happened, such as <code>news.story</code>.</li>
+              <li><code>event_time</code> is the source event's timezone-aware timestamp.</li>
+              <li><code>entity_ids</code> names the company, account, system, or other subject.</li>
+              <li><code>source</code>, <code>provenance</code>, and <code>schema_ref</code> help explain where it came from and how to read it.</li>
+              <li><code>payload</code> and <code>attributes</code> carry the source details needed by downstream steps.</li>
+            </ul>
+          </article>
+          <article class="card">
+            <h4>Worked input from the synthetic news demo</h4>
+            <p>This is the shape of the Northstar story event used by <code>reflex demo-news</code>. Some optional metadata is omitted for readability.</p>
+            <pre><code>{
+  "event_id": "news-100-initial",
+  "event_type": "news.story",
+  "event_time": "2026-01-12T09:00:00Z",
+  "entity_ids": ["NORTHSTAR"],
+  "source": "synthetic:portfolio-news",
+  "schema_ref": "portfolio.news-story@1.0",
+  "payload": {
+    "story_id": "news-100",
+    "revision": 0,
+    "headline": "Northstar raises its earnings outlook",
+    "companies": ["NORTHSTAR"],
+    "themes": ["earnings", "guidance"]
+  }
+}</code></pre>
+          </article>
+        </div>
+        <details><summary>What can go wrong at this step?</summary><div class="details-body"><p>A timestamp without a timezone is rejected. Missing or unstable IDs make it harder to deduplicate or cite the source record. If evaluator-only truth is mixed into an input event, a later evaluation is no longer label-blind.</p></div></details>
+      </div>
+
+      <div class="step-panel" id="step-panel-2" role="tabpanel" aria-labelledby="step-tab-2" tabindex="0" hidden>
+        <p class="kicker">Step 2 of 6 · Analysis</p>
+        <h3>A Lens looks: make the method visible and repeatable</h3>
+        <p>A Lens is a named, versioned method for inspecting events. REFLEX also uses registered Reaction functions to transform one event into another or compare an event with saved state. The method decides what pattern to report; it does not decide on its own whether an action is allowed.</p>
+        <div class="two-col">
+          <article class="card">
+            <h4>Three kinds of checks in this project</h4>
+            <ul class="checklist">
+              <li><strong>Deterministic SQL Lens:</strong> the default rule selects native events with an <code>amount</code> of at least 4,000 using a bounded local query.</li>
+              <li><strong>Statistical Lenses:</strong> fit or load model artifacts from time-window features, calibrate thresholds on a separate interval, then score later windows.</li>
+              <li><strong>Reaction function:</strong> run a registered, versioned function on a matching event and the declared state snapshot.</li>
+            </ul>
+          </article>
+          <article class="card">
+            <h4>Example: portfolio exposure</h4>
+            <p>The story-understanding function extracts the named companies. The next function compares those names with the demo portfolio's saved holdings.</p>
+            <div class="sequence" aria-label="Exposure check example"><span>story mentions NORTHSTAR</span><b aria-hidden="true">→</b><span>portfolio contains NORTHSTAR</span><b aria-hidden="true">→</b><span>relevant=true</span></div>
+            <p class="sample">The function is recorded as <code>portfolio-exposure@1.0</code>. A different version can be inspected as a distinct method.</p>
+          </article>
+        </div>
+        <div class="table-wrap" style="margin-top:14px">
+          <table><thead><tr><th>Discovery phase</th><th>Purpose</th><th>Boundary</th></tr></thead>
+            <tbody>
+              <tr><td>Training</td><td>Build features and fit the statistical model.</td><td>Uses earlier events only.</td></tr>
+              <tr><td>Calibration</td><td>Choose a threshold for the fitted method.</td><td>Kept separate from model fitting.</td></tr>
+              <tr><td>Evaluation</td><td>Measure how the selected method scores later events.</td><td>Must remain unseen during fitting and calibration.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <details><summary>Why name and version a Lens?</summary><div class="details-body"><p>A reviewer should be able to tell which rule or model produced an observation. Version IDs and stored artifacts help reproduce or compare a method. A changed rule should not silently overwrite the meaning of an older result.</p></div></details>
+      </div>
+
+      <div class="step-panel" id="step-panel-3" role="tabpanel" aria-labelledby="step-tab-3" tabindex="0" hidden>
+        <p class="kicker">Step 3 of 6 · Evidence</p>
+        <h3>Evidence is linked: make a finding inspectable</h3>
+        <p>A Lens result becomes an observation. It records what was found, which subject and time window it concerns, which Lens version produced it, and which input events support it. The event IDs let a reviewer trace a finding back to source activity.</p>
+        <div class="record-chain" aria-label="Observation parent links"><span>news-100-initial<br><small>input story</small></span><b aria-hidden="true">→</b><span>observation.news_understanding<br><small>story details</small></span><b aria-hidden="true">→</b><span>observation.portfolio_exposure<br><small>portfolio relevance</small></span></div>
+        <div class="two-col">
+          <article class="card">
+            <h4>What an observation carries</h4>
+            <ul class="checklist">
+              <li>Observation ID and type.</li>
+              <li>Lens ID, version, and subject.</li>
+              <li>Window start and end, with the result value.</li>
+              <li>Supporting event IDs and any state snapshot used.</li>
+              <li>Quality details and provenance about how it was produced.</li>
+            </ul>
+          </article>
+          <article class="card">
+            <h4>Two related record types</h4>
+            <p><code>Observation</code> is the structured Lens result. <code>ObservationEvent</code> is the event-ledger form of that result. Its parent event IDs preserve the evidence chain.</p>
+            <p class="sample"><strong>Example review questions:</strong> Do the cited IDs exist? Do they refer to the same subject? Were they available by the observation time? Does the evidence actually support the interpretation?</p>
+          </article>
+        </div>
+        <aside class="note" style="margin-top:14px"><p><strong>An evidence link is not a causal proof.</strong> REFLEX can check that citations exist and are time- and entity-aligned. A person or separate validation method still needs to judge whether they are enough to support the claim.</p></aside>
+      </div>
+
+      <div class="step-panel" id="step-panel-4" role="tabpanel" aria-labelledby="step-tab-4" tabindex="0" hidden>
+        <p class="kicker">Step 4 of 6 · Decision</p>
+        <h3>Policy checks: decide whether to record, investigate, or defer</h3>
+        <p>Policy is the decision boundary between a finding and a next step. In the statistical discovery path, the local policy checks whether the observation is flagged and whether investigation budget remains.</p>
+        <div class="two-col">
+          <article class="card">
+            <h4>Discovery policy example</h4>
+            <ul class="checklist">
+              <li><code>record</code> an observation when its calibrated anomaly flag is not set.</li>
+              <li><code>investigate</code> a flagged observation while the investigation budget can still be consumed.</li>
+              <li><code>defer</code> a flagged observation when the run has reached its budget.</li>
+            </ul>
+          </article>
+          <article class="card">
+            <h4>Illustrative budget arithmetic</h4>
+            <p>If a run permits three investigations and two have been used, a flagged item can consume the final slot. If all three are already used, the observation remains recorded and policy defers further investigation.</p>
+            <p class="sample"><code>used=2 · limit=3 · decision=investigate</code><br><code>used=3 · limit=3 · decision=defer</code></p>
+          </article>
+        </div>
+        <h4 style="margin-top:18px">A Reaction also checks its declared conditions</h4>
+        <p>Reaction execution checks subscription, event and output schemas when declared, required state, registered functions, event access scopes, and maximum step/output/retry counts. These runtime checks are separate from the discovery <code>PolicyEngine</code>.</p>
+        <details><summary>What permission means here</summary><div class="details-body"><p>A Reaction's permission list is compared with the permission named by an action's registered function. This is a local allowlist boundary, not a full identity provider or user approval service. A deployment that requires human approval must enforce it in the host application or an explicit review step.</p></div></details>
+      </div>
+
+      <div class="step-panel" id="step-panel-5" role="tabpanel" aria-labelledby="step-tab-5" tabindex="0" hidden>
+        <p class="kicker">Step 5 of 6 · Action</p>
+        <h3>A safe step follows: request only a registered, bounded function</h3>
+        <p>A Reaction function can emit a new observation, request a registered action, or emit nothing and stop. An action event names a specific function and provides structured arguments; it does not contain arbitrary executable code.</p>
+        <div class="two-col">
+          <article class="card">
+            <h4>Before an action runs</h4>
+            <ol class="checklist">
+              <li>The action function and version must be registered.</li>
+              <li>The required permission must match the registered function and be granted to the Reaction.</li>
+              <li>Configured argument schemas must accept the request.</li>
+              <li>The retry count and workflow output budget must allow the attempt.</li>
+              <li>The function must return a structured result that passes any configured result schema.</li>
+            </ol>
+          </article>
+          <article class="card">
+            <h4>Example: synthetic portfolio alert</h4>
+            <p>For a relevant story, the demo emits an action for <code>publish_to_pm@1.0</code>. The registered permission is <code>publish:portfolio_manager</code>, and the request allows one retry.</p>
+            <pre><code>function: publish_to_pm@1.0
+permission: publish:portfolio_manager
+retry limit: 1
+arguments: story ID, revision, manager ID, headline</code></pre>
+            <p class="sample">The demo publisher is an in-memory simulation. No real message is sent.</p>
+          </article>
+        </div>
+        <aside class="note" style="margin-top:14px"><p><strong>Review is not implied by a permission string.</strong> The sample's permission is configured in the Reaction. It does not prove that a named human has approved a live operation.</p></aside>
+      </div>
+
+      <div class="step-panel" id="step-panel-6" role="tabpanel" aria-labelledby="step-tab-6" tabindex="0" hidden>
+        <p class="kicker">Step 6 of 6 · Record and replay</p>
+        <h3>The result is saved: keep a trail that can be reviewed</h3>
+        <p>REFLEX writes derived records alongside the original input. A Reaction run records its trigger, version, function versions, emitted event IDs, state snapshot and hash, status, errors, and timestamps.</p>
+        <div class="two-col">
+          <article class="card">
+            <h4>Where the trail lives</h4>
+            <ul class="checklist">
+              <li><strong>DuckDB event store:</strong> input events, observations, action requests, and action results.</li>
+              <li><strong>SQLite state store:</strong> versioned state, audit reasons, budgets, execution records, and Lens-candidate transitions.</li>
+              <li><strong>Artifact directory:</strong> versioned statistical models and manifests.</li>
+            </ul>
+          </article>
+          <article class="card">
+            <h4>Replay and duplicate protection</h4>
+            <p>Replaying an event checks the workflow using its recorded inputs. The action executor can return a prior successful result; when a replay would otherwise perform an external side effect, it skips that side effect.</p>
+            <p class="sample">A replay is for checking or reproducing behavior. To retry a real action, create an explicit new action under the host application's retry and approval rules.</p>
+          </article>
+        </div>
+        <details><summary>How does the record chain look?</summary><div class="details-body"><p><code>NativeEvent → ObservationEvent → ActionEvent → ActionResultEvent</code>. Each derived event can refer to its parent or cause, while the SQLite run record stores the broader workflow context.</p></div></details>
+      </div>
+      <aside class="note"><p><strong>Important:</strong> an observation is a finding to inspect, not proof of a cause. REFLEX preserves evidence and decisions; people still need suitable validation before trusting a claim or acting on it.</p></aside>
+    </section>
+
+    <section id="terms" aria-labelledby="terms-title">
+      <h2 id="terms-title">The main ideas</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Term</th><th>Meaning</th><th>Example</th></tr></thead>
+          <tbody>
+            <tr><td>Event</td><td>A dated record of something that happened.</td><td>A <code>news.story</code> or a payment status update.</td></tr>
+            <tr><td>Event ledger</td><td>The ordered history of source events and later derived records.</td><td>DuckDB stores inputs, observations, action requests, and action results.</td></tr>
+            <tr><td>Lens</td><td>A named, versioned method for finding a pattern.</td><td>A bounded SQL threshold or a statistical detector.</td></tr>
+            <tr><td>Observation</td><td>A finding linked to its subject, result, method version, and evidence IDs.</td><td>“Exposure changed in this window,” with event IDs to inspect.</td></tr>
+            <tr><td>Policy</td><td>A rule that decides whether to record, investigate, defer, or proceed.</td><td>Defer when the investigation budget is exhausted.</td></tr>
+            <tr><td>Reaction</td><td>A versioned workflow graph connecting events, functions, state, and output events.</td><td>Understand a story, check portfolio exposure, then possibly notify.</td></tr>
+            <tr><td>Action event</td><td>A request for one registered function with arguments and a permission requirement.</td><td>Ask a simulated publisher to send an alert.</td></tr>
+            <tr><td>Action result</td><td>A separate record of whether an action attempt succeeded or failed.</td><td>“Delivered” after the simulated retry.</td></tr>
+            <tr><td>State</td><td>Versioned information used by a later step, with an audit reason and time.</td><td>The synthetic portfolio's holdings or a Lens candidate's status.</td></tr>
+            <tr><td>Replay</td><td>Repeat a workflow over saved inputs to inspect or reproduce its decisions.</td><td>Recheck emitted event IDs without sending another external message.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <h3 style="margin-top:22px">Separate record types</h3>
+      <p class="section-intro">The code gives each kind of record its own type, while sharing common event fields such as ID, time, source, and lineage.</p>
+      <div class="three-col">
+        <article class="card"><h3><code>NativeEvent</code></h3><p>An input from a source or synthetic generator. It is the starting evidence for later processing.</p></article>
+        <article class="card"><h3><code>Observation</code> and <code>ObservationEvent</code></h3><p><code>Observation</code> carries Lens output and evidence references. <code>ObservationEvent</code> is its ledger representation.</p></article>
+        <article class="card"><h3><code>ActionEvent</code> and <code>ActionResultEvent</code></h3><p>The request and the attempt outcome are different records, so the action trail stays explicit.</p></article>
+      </div>
+    </section>
+
+    <section id="story-example" aria-labelledby="story-title">
+      <h2 id="story-title">Worked example: a synthetic news story</h2>
+      <p class="section-intro">The repository's <code>reflex demo-news</code> command shows how a Reaction joins the pieces. It uses invented stories, an invented portfolio, and a local simulated publisher.</p>
+      <div class="two-col">
+        <article class="card">
+          <h3>1. The input event</h3>
+          <p>The story arrives as a <code>NativeEvent</code>. The event ID, event type, time, source, entity, and payload make the input traceable.</p>
+          <pre><code>{
+  "event_id": "news-100-initial",
+  "event_type": "news.story",
+  "event_time": "2026-01-12T09:00:00Z",
+  "entity_ids": ["NORTHSTAR"],
+  "source": "synthetic:portfolio-news",
+  "schema_ref": "portfolio.news-story@1.0",
+  "payload": {
+    "story_id": "news-100",
+    "revision": 0,
+    "headline": "Northstar raises its earnings outlook",
+    "companies": ["NORTHSTAR"],
+    "themes": ["earnings", "guidance"]
+  }
+}</code></pre>
+        </article>
+        <article class="card">
+          <h3>2. A Reaction runs registered functions</h3>
+          <p><code>portfolio_news_intelligence@1.0</code> subscribes to <code>news.story</code>. Its versioned functions create a story-understanding observation, then compare the company names with saved portfolio holdings.</p>
+          <div class="sequence" aria-label="Story event flows through the Reaction">
+            <span>news.story</span><b aria-hidden="true">→</b><span>understand</span><b aria-hidden="true">→</b><span>exposure check</span>
+          </div>
+        </article>
+        <article class="card">
+          <h3>3. Observations keep evidence</h3>
+          <p>Each result is saved as an <code>ObservationEvent</code> linked to the event it assessed. Following parent links leads from exposure to story understanding and then to the original story.</p>
+          <p class="sample"><strong>Example lineage:</strong><code>news-100-initial<br>↓ parent of<br>observation.news_understanding<br>↓ parent of<br>observation.portfolio_exposure</code></p>
+        </article>
+        <article class="card">
+          <h3>4. The workflow chooses a path</h3>
+          <p>A relevant exposure observation can branch to a relationship investigation and to the notification function. An unheld company's story is still recorded, but this example creates no portfolio alert for it.</p>
+        </article>
+        <article class="card">
+          <h3>5. The action boundary checks the request</h3>
+          <p>The notification function can emit an <code>ActionEvent</code>. The executor checks the registered function, the matching permission, and any configured argument or result schema before running it.</p>
+          <p class="sample"><strong>Demo action:</strong><code>publish_to_pm@1.0<br>permission=publish:portfolio_manager<br>retry limit=1</code></p>
+        </article>
+        <article class="card">
+          <h3>6. Results and updates remain traceable</h3>
+          <p>The publisher's success or failure becomes an action-result event. The demo also exercises a transient failure and retry, duplicate suppression, a new story revision, a manager response, and an unverified supplier hypothesis.</p>
+        </article>
+      </div>
+      <h3 style="margin-top:24px">The same story through the run</h3>
+      <div class="trace">
+        <div class="trace-item"><span class="trace-number">1</span><p><strong>Story arrives.</strong><br><code>news-100-initial</code> says Northstar raised its outlook.</p></div>
+        <div class="trace-item"><span class="trace-number">2</span><p><strong>Story is understood.</strong><br>A versioned function emits <code>observation.news_understanding</code>.</p></div>
+        <div class="trace-item"><span class="trace-number">3</span><p><strong>Exposure is checked.</strong><br>The synthetic portfolio contains Northstar, so the observation marks it relevant.</p></div>
+        <div class="trace-item"><span class="trace-number">4</span><p><strong>Notification is requested.</strong><br>A registered action function runs under the configured permission.</p></div>
+        <div class="trace-item"><span class="trace-number">5</span><p><strong>Attempt and result are recorded.</strong><br>The first simulated attempt fails once; its allowed retry succeeds.</p></div>
+        <div class="trace-item"><span class="trace-number">6</span><p><strong>Duplicate is suppressed.</strong><br>The same story revision at 09:05 does not create duplicate notification work.</p></div>
+      </div>
+      <p class="caption">All story and portfolio data in this example are synthetic. The publisher runs in memory and sends no real message.</p>
+    </section>
+
+    <section id="discovery" aria-labelledby="discovery-title">
+      <h2 id="discovery-title">A second path: statistical discovery</h2>
+      <p class="section-intro">The discovery workflow analyzes event histories in time order. It builds features, fits or loads versioned Lenses, records observations, and can investigate selected findings under a fixed budget.</p>
+      <div class="timeline">
+        <div class="timeline-item"><strong>Training period</strong><span>Build features and fit the model using earlier events.</span></div>
+        <div class="timeline-item"><strong>Calibration period</strong><span>Choose thresholds separately from model fitting.</span></div>
+        <div class="timeline-item"><strong>Later evaluation period</strong><span>Score new events or windows; do not train on this period.</span></div>
+      </div>
+      <div class="two-col">
+        <article class="lane">
+          <span class="label">Deterministic Lens</span>
+          <h3>SQL threshold</h3>
+          <p>The default SQL Lens selects native events whose <code>amount</code> is at least 4,000. It runs one bounded <code>SELECT</code> or <code>WITH</code> query against the registered local <code>events</code> relation.</p>
+        </article>
+        <article class="lane">
+          <span class="label">Statistical Lenses</span>
+          <h3>Learned pattern scores</h3>
+          <p>The synthetic discovery path fits or reuses statistical artifacts, calibrates thresholds, and scores later entity windows. Manifests record the seed, feature names, training cutoff, and data signatures.</p>
+        </article>
+      </div>
+      <h3 style="margin-top:24px">Six controlled synthetic scenarios</h3>
+      <div class="terms">
+        <article class="term"><h3>Exposure drift</h3><p>Gradual exposure change before a static limit is crossed.</p></article>
+        <article class="term"><h3>Collateral deterioration</h3><p>Several moderate changes combine into stress.</p></article>
+        <article class="term"><h3>Rare sequence</h3><p>An ordered chain matters more than any one event.</p></article>
+        <article class="term"><h3>Correlation shift</h3><p>The relation between features changes while their individual distributions remain similar.</p></article>
+        <article class="term"><h3>Spurious confounder</h3><p>An apparent relationship breaks and a different driver becomes relevant.</p></article>
+        <article class="term"><h3>Unseen mechanism</h3><p>A new partner and value interaction appears after training.</p></article>
+      </div>
+      <aside class="note" style="margin-top:18px"><p><strong>Labels stay separate.</strong> Synthetic ground-truth labels are held in an evaluator directory and should not be passed to an adapter under evaluation. A run without <code>--evaluator-dir</code> stays label-blind.</p></aside>
+    </section>
+
+    <section id="flags" aria-labelledby="flags-title">
+      <h2 id="flags-title">What a statistical flag means</h2>
+      <p class="section-intro">A flag says that a scored pattern crossed a calibrated cutoff. It does not, by itself, say that the event broke a business rule or that something harmful happened.</p>
+      <div class="two-col">
+        <article class="lane">
+          <span class="label">Explicit rule</span>
+          <h3>A named condition is met</h3>
+          <p>A rule can say “flag an amount of 4,000 or more.” The condition is visible and produces the same result for the same input. A reviewer can see exactly which threshold was crossed.</p>
+        </article>
+        <article class="lane">
+          <span class="label">Statistical flag</span>
+          <h3>A pattern looks unusual</h3>
+          <p>The Autoencoder and Isolation Forest score feature combinations against earlier data. In the BPI run, each cutoff was set at the 98th percentile of its calibration scores. That cutoff is explicit; the model has no written business rule explaining why a long wait, repeated workflow step, or unusual combination is bad.</p>
+        </article>
+      </div>
+
+      <h3 style="margin-top:24px">What the BPI sample showed</h3>
+      <p>The models scored completed loan-application cases using event count, duration, activity patterns, resources, and offer fields. Outcome-status events and <code>Accepted</code>/<code>Selected</code> fields were left out of the model inputs. There are no independent anomaly labels in this dataset, so these results cannot tell us how many flags are correct.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Lens</th><th>Later cases flagged</th><th>What that means</th></tr></thead>
+          <tbody>
+            <tr><td>Autoencoder</td><td>120 of 6,019 (2.0%)</td><td>These case features were difficult for its model to reconstruct.</td></tr>
+            <tr><td>Isolation Forest</td><td>178 of 6,019 (3.0%)</td><td>These cases were easier to isolate from the fitted cases.</td></tr>
+            <tr><td>Both</td><td>62 cases</td><td>Both lenses ranked these cases beyond their own calibrated cutoffs.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="three-col" style="margin-top:18px">
+        <article class="card">
+          <h3>Possible process friction</h3>
+          <p><code>Application_706230820</code> lasted about 142 days and had a 112-day gap between workflow events, with repeated <code>W_Shortened completion</code> activity. This deserves review; the score cannot tell us whether it was a fault or an unusual but valid case.</p>
+        </article>
+        <article class="card">
+          <h3>Repeated document requests</h3>
+          <p><code>Application_114551747</code> lasted about 98 days and had 50 <code>W_Call incomplete files</code> events. This may reflect a difficult application or a data/process problem. The trace is evidence to inspect, not a diagnosis.</p>
+        </article>
+        <article class="card">
+          <h3>Potentially normal outlier</h3>
+          <p><code>Application_968189026</code> completed in about four minutes and ended in refusal. That unusual timing may be a normal quick rejection. A statistical flag does not make it an error.</p>
+        </article>
+      </div>
+      <aside class="note" style="margin-top:18px">
+        <p><strong>Use flags to prioritize review.</strong> They are not proof of fraud, failure, or a rule violation. This BPI pass scored complete cases after they ended, so it does not demonstrate early warning. A cancelled case was also left unflagged, showing that the outcome alone did not determine the score.</p>
+      </aside>
+
+      <h3 style="margin-top:24px">Taking the event shape to FX</h3>
+      <p>An FX order or trade can use the same event structure: keep an order/trade ID with timestamped events such as <code>order.submitted</code>, <code>trade.filled</code>, <code>order.cancelled</code>, and <code>trade.settled</code>. Store pair, side, quantity, rate, venue, and counterparty as attributes. The BPI scores do not transfer: FX requires its own feature definitions, historical fit and calibration periods, and validation data.</p>
+      <p>Keep known controls as explicit, versioned rules—for example, an exposure ceiling or a prohibited state transition. Let statistical Lenses surface less familiar patterns, and attach their scores and supporting events so a reviewer can investigate before any consequential action.</p>
+      <p><a href="bpi2017-fx-flags.md">Read the full BPI-to-FX flag review in Markdown</a> · <a href="../reports/reflex-experiments/bpi2017-lens-review/flagged-cases.csv">See all 236 flagged cases</a> · <a href="../reports/reflex-experiments/bpi2017-lens-review/sample-case.csv">View the 40-event BPI sample</a></p>
+    </section>
+
+    <section id="safety" aria-labelledby="safety-title">
+      <h2 id="safety-title">Policy, permissions, state, and replay</h2>
+      <div class="three-col">
+        <article class="card">
+          <h3>Bounded investigation</h3>
+          <p>The discovery policy records unflagged findings, investigates flagged findings while budget remains, and defers findings after the investigation budget is exhausted. Local investigation tools also enforce a query budget.</p>
+        </article>
+        <article class="card">
+          <h3>Registered actions only</h3>
+          <p>An action names an allowlisted function, arguments, permission, and retry limit. The runtime checks its declared permission and optional schemas; workflow definitions limit steps and emitted events.</p>
+        </article>
+        <article class="card">
+          <h3>Human approval is a host responsibility</h3>
+          <p>These local checks do not provide a full identity, secrets, or approval service. A deployment that requires approval must enforce it in the host application or an explicit review step.</p>
+        </article>
+      </div>
+      <h3 style="margin-top:24px">Where records are stored</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Store</th><th>What it holds</th></tr></thead>
+          <tbody>
+            <tr><td>DuckDB event store</td><td>Source events, observations, action requests, and action results. Identical duplicate IDs are ignored; conflicting content under an existing ID is rejected.</td></tr>
+            <tr><td>SQLite state store</td><td>Versioned state, audit entries, budgets, execution records, and Lens-candidate transitions.</td></tr>
+            <tr><td>Artifact files</td><td>Statistical model artifacts and manifests for later inspection or reuse.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="section-intro" style="margin-top:16px">A Reaction run records its trigger, Reaction version, function versions, emitted event IDs, state snapshot and hash, status, errors, and timestamps. On replay, prior successful action results can be reused; new external side effects are skipped. Use a new explicit action and the host's approval rules when a real retry is intended.</p>
+    </section>
+
+    <section id="commands" aria-labelledby="commands-title">
+      <h2 id="commands-title">Command-line walkthrough</h2>
+      <p class="section-intro">Install with <code>uv</code>, then use one command name for all workflows. Add <code>--help</code> to a command or group to see its options.</p>
+      <p class="caption">The project supports Python 3.12–3.14; these examples use Python 3.13.</p>
+      <pre><code>uv sync --python 3.13 --extra dev
+uv run reflex --help
+uv run reflex demo-news --out .reflex-news-demo</code></pre>
+      <details open>
+        <summary>Run synthetic discovery</summary>
+        <div class="details-body">
+          <p>For a one-command run that generates data, discovers patterns, and scores them after prediction:</p>
+          <pre><code>uv run reflex demo --out .reflex-demo --seed 11</code></pre>
+          <p>This writes a dataset manifest, event and state databases, model artifacts, and <code>latest-run.json</code>. The default evaluator labels are in a sibling <code>.reflex-demo-evaluator/</code> directory.</p>
+          <p>To keep the discovery command label-blind, generate first and omit the evaluator directory when discovering:</p>
+          <pre><code>uv run reflex generate --out .reflex-data --seed 11 --entities 80 --days 30
+uv run reflex discover --data-dir .reflex-data</code></pre>
+        </div>
+      </details>
+      <details>
+        <summary>Load, replay, inspect, or export event data</summary>
+        <div class="details-body">
+          <pre><code># Ingest a local dataset file
+uv run reflex ingest-bpi ./data/bpi.csv --db events.duckdb
+uv run reflex ingest-loghub ./data/logs.csv --db events.duckdb
+
+# Apply the default high-amount SQL Lens in five-day batches
+uv run reflex replay --db events.duckdb --state state.sqlite --batch-days 5
+
+# Inspect a state namespace and its audit history
+uv run reflex state --db state.sqlite --namespace discovery --audit
+
+# Export an event-time-sorted Parquet snapshot
+uv run reflex export-parquet --db events.duckdb --out events.parquet</code></pre>
+          <p>BPI and Loghub inputs are local files that you acquire separately. The replay command requires a populated event database; its default SQL Lens flags native events with an amount of at least 4,000.</p>
+        </div>
+      </details>
+      <details>
+        <summary>Propose and activate a SQL Lens candidate</summary>
+        <div class="details-body">
+          <p>A candidate needs an ID and version, SQL, description, applicability, and timezone-aware training and validation boundaries. Validation must use an interval at or after the candidate's declared validation boundary and the query must return event IDs.</p>
+          <pre><code>uv run reflex lens --state state.sqlite propose candidate.json
+uv run reflex lens --state state.sqlite validate CANDIDATE_ID \
+  --db events.duckdb --start 2025-02-01T00:00:00Z --end 2025-02-08T00:00:00Z
+uv run reflex lens --state state.sqlite approve CANDIDATE_ID
+uv run reflex lens --state state.sqlite activate CANDIDATE_ID</code></pre>
+          <p>Proposal, validation, approval, activation, and retirement are separate recorded lifecycle steps. A proposed Lens is not active by default.</p>
+        </div>
+      </details>
+    </section>
+
+    <section id="experiments" aria-labelledby="experiments-title">
+      <h2 id="experiments-title">Experiments and how to read them</h2>
+      <div class="command-grid">
+        <article class="command-card">
+          <h3>Run one scenario</h3>
+          <p>Available variants receive the same synthetic case. Missing adapters remain missing.</p>
+          <pre><code>uv run reflex experiments list
+uv run reflex experiments run exposure_drift \
+  --entities 32 --days 60 --seed 11 \
+  --variants A,B,C \
+  --out reports/reflex-experiments/exposure-drift</code></pre>
+        </article>
+        <article class="command-card">
+          <h3>Repeat across new seeds</h3>
+          <p>The held-out runner evaluates deterministic C across new synthetic cases; it is not a baseline comparison.</p>
+          <pre><code>uv run reflex experiments heldout \
+  --first-seed 101 --seed-count 30 \
+  --entities 40 --days 60 \
+  --out reports/reflex-experiments/heldout-seeds-101-130</code></pre>
+        </article>
+      </div>
+      <details>
+        <summary>Other experiment examples</summary>
+        <div class="details-body">
+          <pre><code># Synthetic news evolution and market-outcome diagnostics
+uv run reflex experiments news --out reports/reflex-experiments/news
+
+# Simulated incident diagnosis and sandbox repair
+uv run reflex experiments operations --count 40 \
+  --out reports/reflex-experiments/operations
+
+# Opt-in download and replay of a selected GDELT archive day
+uv run reflex experiments gdelt --date 20261123 --limit 10000 \
+  --out reports/reflex-experiments/gdelt-20261123
+
+# Local event-store measurements
+uv run reflex experiments performance --sizes 1000,10000,100000 \
+  --out reports/reflex-experiments/performance</code></pre>
+          <p>The GDELT command accesses a public archive when run. Its report measures ingestion and replay, not news relevance or market prediction. News and operations are simulations. Performance figures depend on the machine and runtime.</p>
+        </div>
+      </details>
+      <details>
+        <summary>Understand the two comparison protocols</summary>
+        <div class="details-body">
+          <ul>
+            <li><code>reflex benchmark</code> is the portfolio-news A/B/C protocol. The input, objective, and budgets are shared. The repository can run C; A and B require actual external runs.</li>
+            <li><code>reflex discovery-benchmark</code> is a separate manual A–E protocol. Its synthetic pilot measures REFLEX statistical Lenses; it does not run five real agent variants or prove that state improved discovery.</li>
+            <li><code>reflex experiments heldout</code> evaluates C on new synthetic seeds. It does not compare REFLEX with an unrun baseline.</li>
+          </ul>
+          <pre><code># A/B/C portfolio-news protocol
+uv run reflex benchmark init --out reflex-benchmark.json --seeds 11,23,37
+uv run reflex benchmark run-c --protocol reflex-benchmark.json \
+  --out .reflex-benchmark-c --seed 11
+uv run reflex benchmark report --protocol reflex-benchmark.json
+
+# Separate repeated-seed synthetic discovery pilot
+uv run reflex discovery-benchmark pilot --out reports/reflex-pilot \
+  --seeds 11,23,37</code></pre>
+        </div>
+      </details>
+      <div class="table-wrap" style="margin-top:18px">
+        <table>
+          <thead><tr><th>Measure</th><th>What it answers</th><th>What it cannot show alone</th></tr></thead>
+          <tbody>
+            <tr><td>Precision</td><td>How many predicted event IDs match held-out labels?</td><td>Whether the detector works on real populations.</td></tr>
+            <tr><td>Recall</td><td>How many labeled event IDs were found?</td><td>Whether the evidence explains why they occurred.</td></tr>
+            <tr><td>F1</td><td>A combined summary of precision and recall.</td><td>Which of precision or recall needs improvement; read both too.</td></tr>
+            <tr><td>Evidence integrity</td><td>Whether cited records exist, align to an entity, and are not from the future.</td><td>Whether the evidence is causally sufficient.</td></tr>
+            <tr><td>Intervals across seeds</td><td>Variation across the generated cases in that experiment.</td><td>Variation across real organizations, data sources, or model versions.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="data" aria-labelledby="data-title">
+      <h2 id="data-title">Using data beyond the demos</h2>
+      <p class="section-intro">The core examples are synthetic. The repository also includes local-file adapters and opt-in public-data workflows; data acquisition and permission to use a dataset remain your responsibility.</p>
+      <div class="three-col">
+        <article class="card">
+          <h3>Local process logs</h3>
+          <p>The CLI reads a locally acquired BPI Challenge 2017 CSV or Loghub CSV, JSONL, or HDFS log and maps rows to REFLEX events.</p>
+        </article>
+        <article class="card">
+          <h3>Research datasets</h3>
+          <p>Adapters also map FNSPID-style financial news, Reuters-21578, and normalized market-price records for experiment workflows.</p>
+        </article>
+        <article class="card">
+          <h3>Public news stream</h3>
+          <p>The GDELT command can download and replay a selected official daily archive. It measures ingestion and replay, not story relevance or market effect.</p>
+        </article>
+      </div>
+      <p class="caption">News and market associations are predictive diagnostics. They do not establish that an article caused a market movement.</p>
+    </section>
+
+    <section id="extend" aria-labelledby="extend-title">
+      <h2 id="extend-title">How to extend REFLEX</h2>
+      <div class="three-col">
+        <article class="card">
+          <h3>Add an event source</h3>
+          <ol>
+            <li>Convert each source row to a <code>NativeEvent</code>.</li>
+            <li>Include a timezone-aware event time, stable ID, source, and entity IDs when known.</li>
+            <li>Keep evaluator labels out of event attributes and payloads.</li>
+            <li>Save events, then point a Lens or Reaction at the declared event types and schemas.</li>
+          </ol>
+        </article>
+        <article class="card">
+          <h3>Add a Lens or Reaction function</h3>
+          <ol>
+            <li>Define typed inputs and outputs.</li>
+            <li>Give the function a stable ID and version; register it before use.</li>
+            <li>Declare schemas, state, edges, permissions, and run limits.</li>
+            <li>Register side-effect functions with <code>ActionExecutor</code> and validate arguments and results.</li>
+          </ol>
+        </article>
+        <article class="card">
+          <h3>Add an experiment scenario</h3>
+          <ol>
+            <li>Generate label-blind event inputs and separate evaluator labels.</li>
+            <li>Give each adapter the same <code>AgentInput</code> and budget.</li>
+            <li>Score predictions only in the evaluator path.</li>
+            <li>Report seeds, input hashes, metrics, unavailable variants, and limitations.</li>
+          </ol>
+        </article>
+      </div>
+      <p class="caption">The sample Reaction is in <code>src/reflex/news_demo.py</code>; shared scenario generation is in <code>src/reflex/experiments/generators.py</code>.</p>
+    </section>
+
+    <section id="troubleshoot" aria-labelledby="troubleshoot-title">
+      <h2 id="troubleshoot-title">Quick troubleshooting</h2>
+      <details>
+        <summary>A discovery run has no evaluation metrics</summary>
+        <div class="details-body"><p>That is expected when you omit <code>--evaluator-dir</code>. The run remains label-blind; the evaluator labels are intentionally separate.</p></div>
+      </details>
+      <details>
+        <summary>A Reaction cannot find its function</summary>
+        <div class="details-body"><p>Check that the function ID and version match the node's <code>FunctionRef</code> and that the function was registered in <code>FunctionRegistry</code>.</p></div>
+      </details>
+      <details>
+        <summary>An action request is rejected</summary>
+        <div class="details-body"><p>Check the registered function, permission name, argument schema, result schema, retry limit, and Reaction output budget.</p></div>
+      </details>
+      <details>
+        <summary>A SQL Lens candidate will not validate</summary>
+        <div class="details-body"><p>Use one bounded <code>SELECT</code> or <code>WITH</code> against the event relation, return <code>event_id</code>, and validate only at or after the declared validation boundary.</p></div>
+      </details>
+      <details>
+        <summary>A rerun appears to reuse prior data</summary>
+        <div class="details-body"><p>Event IDs, state, and artifacts are designed to persist or deduplicate. Use a new output directory when you need an independent run.</p></div>
+      </details>
+    </section>
+
+    <section id="code-map" aria-labelledby="code-title">
+      <h2 id="code-title">Where to look in the code</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>File or folder</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>src/reflex/core/models/events.py</code></td><td>Input events, observations, action requests/results, and stable IDs.</td></tr>
+            <tr><td><code>src/reflex/core/models/lenses.py</code></td><td>Lens versions, structured observations, and candidate-Lens lifecycle types.</td></tr>
+            <tr><td><code>src/reflex/core/models/policy.py</code></td><td>Policy decisions and evidence-backed hypotheses.</td></tr>
+            <tr><td><code>src/reflex/core/models/features.py</code></td><td>Typed summaries of entity event windows.</td></tr>
+            <tr><td><code>src/reflex/core/storage.py</code></td><td>DuckDB event ledger and SQLite state/audit storage.</td></tr>
+            <tr><td><code>src/reflex/core/features.py</code></td><td>Chronological event and entity-window feature construction.</td></tr>
+            <tr><td><code>src/reflex/core/discovery.py</code></td><td>Statistical Lens fitting, calibration, artifacts, and scoring.</td></tr>
+            <tr><td><code>src/reflex/core/policy.py</code></td><td>Discovery policy, bounded tools, and local investigation.</td></tr>
+            <tr><td><code>src/reflex/contracts/reactions.py</code></td><td>Function references and versioned Reaction graph definitions.</td></tr>
+            <tr><td><code>src/reflex/contracts/schemas.py</code></td><td>Exploratory observation and schema registry.</td></tr>
+            <tr><td><code>src/reflex/runtime.py</code></td><td>Reaction execution, permission checks, replay, and action outcomes.</td></tr>
+            <tr><td><code>src/reflex/news_demo.py</code></td><td>End-to-end synthetic portfolio-news Reaction example.</td></tr>
+            <tr><td><code>src/reflex/experiments/</code></td><td>Scenario generation, adapters, metrics, held-out runs, and dataset replay.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="limits" aria-labelledby="limits-title">
+      <h2 id="limits-title">What REFLEX does not claim</h2>
+      <div class="two-col">
+        <article class="card"><h3>Synthetic success is not real-world accuracy</h3><p>Generators have known and controlled mechanisms. Strong scores show behavior on those cases, not accuracy on independently collected data.</p></article>
+        <article class="card"><h3>Association is not causation</h3><p>News and market outcome summaries are predictive diagnostics. They do not show that an article caused a price movement.</p></article>
+        <article class="card"><h3>Unavailable baselines stay unavailable</h3><p>No result should be described as a win over a conventional agent unless that baseline has actually run on the same input and budget.</p></article>
+        <article class="card"><h3>This is a research prototype</h3><p>The local stores, simulated actions, permissions, and human review examples are not a production identity or operations system.</p></article>
+      </div>
+    </section>
+
+    <section aria-labelledby="more-title">
+      <h2 id="more-title">Continue reading</h2>
+      <div class="links">
+        <a href="REFLEX-GUIDE.md">Full written guide</a>
+        <a href="architecture.md">Architecture and storage</a>
+        <a href="REFLEX-EXPERIMENTS.md">Experiment results and limits</a>
+        <a href="benchmark-protocol.md">A/B/C benchmark protocol</a>
+      </div>
+    </section>
+
+    <footer>
+      REFLEX is a local research prototype. Examples on this page use synthetic records unless explicitly labeled otherwise. Treat findings as leads for review until they have been checked against independent data and approved for their intended use.
+    </footer>
+  </main>
+  <script>
+    // Give the six workflow tabs normal mouse, keyboard, and screen-reader behavior.
+    const stepTabs = Array.from(document.querySelectorAll('[role="tab"]'));
+
+    function selectStep(tab, moveFocus = false) {
+      for (const item of stepTabs) {
+        const selected = item === tab;
+        item.setAttribute("aria-selected", String(selected));
+        item.tabIndex = selected ? 0 : -1;
+        const panel = document.getElementById(item.getAttribute("aria-controls"));
+        panel.hidden = !selected;
+      }
+      if (moveFocus) tab.focus();
+    }
+
+    stepTabs.forEach((tab, index) => {
+      tab.addEventListener("click", () => selectStep(tab));
+      tab.addEventListener("keydown", (event) => {
+        let nextIndex;
+        if (event.key === "ArrowRight") nextIndex = (index + 1) % stepTabs.length;
+        else if (event.key === "ArrowLeft") nextIndex = (index - 1 + stepTabs.length) % stepTabs.length;
+        else if (event.key === "Home") nextIndex = 0;
+        else if (event.key === "End") nextIndex = stepTabs.length - 1;
+        else return;
+        event.preventDefault();
+        selectStep(stepTabs[nextIndex], true);
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,835 @@
+{
+  "synthetic_only": true,
+  "sandbox_only": true,
+  "incident_count": 40,
+  "diagnosis_accuracy": 1.0,
+  "verified_repairs": 36,
+  "awaiting_human_approval": 4,
+  "traces": [
+    {
+      "incident_id": "incident-0",
+      "diagnosis": "incorrect_instructions",
+      "proposed_action": "sandbox:incorrect_instructions",
+      "attempts": 0,
+      "status": "awaiting_approval",
+      "sandbox_only": true,
+      "idempotency_key": "9bed7452-9d36-5d38-8d7e-31b6990c3187",
+      "rolled_back": false
+    },
+    {
+      "incident_id": "incident-1",
+      "diagnosis": "missing_record",
+      "proposed_action": "sandbox:missing_record",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "f4f71554-209e-58b6-99a0-3abc0193655c",
+      "rolled_back": false,
+      "symptoms_before": {
+        "left_present": true,
+        "right_present": false,
+        "queue_depth": 15,
+        "source_count": 3
+      },
+      "symptoms_after": {
+        "left_present": true,
+        "right_present": true,
+        "queue_depth": 15,
+        "source_count": 3
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-2",
+      "diagnosis": "unmatched_margin_call",
+      "proposed_action": "sandbox:unmatched_margin_call",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "0cb61cf1-4101-55cd-9161-f4dd940c64f5",
+      "rolled_back": false,
+      "symptoms_before": {
+        "call_matched": false,
+        "queue_depth": 12,
+        "source_count": 3
+      },
+      "symptoms_after": {
+        "call_matched": true,
+        "queue_depth": 12,
+        "source_count": 3
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-3",
+      "diagnosis": "missing_market_data",
+      "proposed_action": "sandbox:missing_market_data",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "66ce9512-40da-5eef-89c2-8c8f629da282",
+      "rolled_back": false,
+      "symptoms_before": {
+        "required_mark_present": false,
+        "queue_depth": 3,
+        "source_count": 3
+      },
+      "symptoms_after": {
+        "required_mark_present": true,
+        "queue_depth": 3,
+        "source_count": 3
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-4",
+      "diagnosis": "insufficient_funds",
+      "proposed_action": "sandbox:insufficient_funds",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "30637317-5472-554a-8de6-eb14badf8420",
+      "rolled_back": false,
+      "symptoms_before": {
+        "instruction_match": true,
+        "cash_available": false,
+        "queue_depth": 26,
+        "source_count": 2
+      },
+      "symptoms_after": {
+        "instruction_match": true,
+        "cash_available": true,
+        "queue_depth": 26,
+        "source_count": 2
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-5",
+      "diagnosis": "duplicate_transaction",
+      "proposed_action": "sandbox:duplicate_transaction",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "f8048830-c248-5e64-b81a-8c9752fe5a18",
+      "rolled_back": false,
+      "symptoms_before": {
+        "left_count": 2,
+        "right_count": 1,
+        "queue_depth": 15,
+        "source_count": 3
+      },
+      "symptoms_after": {
+        "left_count": 1,
+        "right_count": 1,
+        "queue_depth": 15,
+        "source_count": 3
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-6",
+      "diagnosis": "disputed_valuation",
+      "proposed_action": "sandbox:disputed_valuation",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "3435bd2f-c160-56d7-b399-aa9a0c337d97",
+      "rolled_back": false,
+      "symptoms_before": {
+        "valuation_disputed": true,
+        "queue_depth": 11,
+        "source_count": 3
+      },
+      "symptoms_after": {
+        "valuation_disputed": false,
+        "queue_depth": 11,
+        "source_count": 3
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-7",
+      "diagnosis": "stale_input",
+      "proposed_action": "sandbox:stale_input",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "d6cf9d71-ceab-588f-8d00-033b582bb8eb",
+      "rolled_back": false,
+      "symptoms_before": {
+        "input_age_minutes": 143,
+        "queue_depth": 20,
+        "source_count": 3
+      },
+      "symptoms_after": {
+        "input_age_minutes": 0,
+        "queue_depth": 20,
+        "source_count": 3
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-8",
+      "diagnosis": "missing_confirmation",
+      "proposed_action": "sandbox:missing_confirmation",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "deef5b3c-b6bb-54bf-890f-c39609bafc90",
+      "rolled_back": false,
+      "symptoms_before": {
+        "instruction_match": true,
+        "confirmation_received": false,
+        "queue_depth": 29,
+        "source_count": 3
+      },
+      "symptoms_after": {
+        "instruction_match": true,
+        "confirmation_received": true,
+        "queue_depth": 29,
+        "source_count": 3
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-9",
+      "diagnosis": "timing_difference",
+      "proposed_action": "sandbox:timing_difference",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "e7ecdd7a-ca05-5425-b6e2-6017c905e718",
+      "rolled_back": false,
+      "symptoms_before": {
+        "left_time_offset_minutes": 7,
+        "queue_depth": 6,
+        "source_count": 3
+      },
+      "symptoms_after": {
+        "left_time_offset_minutes": 0,
+        "queue_depth": 6,
+        "source_count": 3
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-10",
+      "diagnosis": "eligibility_failure",
+      "proposed_action": "sandbox:eligibility_failure",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "b45239b9-6d2a-5510-a153-db7e673cac7e",
+      "rolled_back": false,
+      "symptoms_before": {
+        "eligible": false,
+        "queue_depth": 27,
+        "source_count": 2
+      },
+      "symptoms_after": {
+        "eligible": true,
+        "queue_depth": 27,
+        "source_count": 2
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-11",
+      "diagnosis": "schema_change",
+      "proposed_action": "sandbox:schema_change",
+      "attempts": 0,
+      "status": "awaiting_approval",
+      "sandbox_only": true,
+      "idempotency_key": "dbdc7199-0e3c-5904-90ed-e63d6fb4cb9d",
+      "rolled_back": false
+    },
+    {
+      "incident_id": "incident-12",
+      "diagnosis": "counterparty_discrepancy",
+      "proposed_action": "sandbox:counterparty_discrepancy",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "d3b7635c-a547-51b9-be01-651af5a5440c",
+      "rolled_back": false,
+      "symptoms_before": {
+        "instruction_match": false,
+        "confirmation_received": true,
+        "queue_depth": 23,
+        "source_count": 2
+      },
+      "symptoms_after": {
+        "instruction_match": true,
+        "confirmation_received": true,
+        "queue_depth": 23,
+        "source_count": 2
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-13",
+      "diagnosis": "incorrect_mapping",
+      "proposed_action": "sandbox:incorrect_mapping",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "ad8a1ecc-0449-5d3f-b789-7700c532d551",
+      "rolled_back": false,
+      "symptoms_before": {
+        "mapping_valid": false,
+        "queue_depth": 9,
+        "source_count": 3
+      },
+      "symptoms_after": {
+        "mapping_valid": true,
+        "queue_depth": 9,
+        "source_count": 3
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-14",
+      "diagnosis": "incorrect_haircut",
+      "proposed_action": "sandbox:incorrect_haircut",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "4a89cc33-dcef-572e-be03-3bb121b9a263",
+      "rolled_back": false,
+      "symptoms_before": {
+        "haircut_applied": 0.08,
+        "haircut_expected": 0.12,
+        "queue_depth": 7,
+        "source_count": 1
+      },
+      "symptoms_after": {
+        "haircut_applied": 0.12,
+        "haircut_expected": 0.12,
+        "queue_depth": 7,
+        "source_count": 1
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-15",
+      "diagnosis": "dependency_failure",
+      "proposed_action": "sandbox:dependency_failure",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "67931aea-9486-56f9-8947-013c2ffa6461",
+      "rolled_back": false,
+      "symptoms_before": {
+        "dependency_status": "unavailable",
+        "queue_depth": 20,
+        "source_count": 2
+      },
+      "symptoms_after": {
+        "dependency_status": "available",
+        "queue_depth": 20,
+        "source_count": 2
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-16",
+      "diagnosis": "upstream_failure",
+      "proposed_action": "sandbox:upstream_failure",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "92bb46da-a84c-52f7-b708-9ee0e88cfd3e",
+      "rolled_back": false,
+      "symptoms_before": {
+        "upstream_status": "failed",
+        "queue_depth": 18,
+        "source_count": 1
+      },
+      "symptoms_after": {
+        "upstream_status": "recovered",
+        "queue_depth": 18,
+        "source_count": 1
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-17",
+      "diagnosis": "economic_discrepancy",
+      "proposed_action": "sandbox:economic_discrepancy",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "a34f37df-794a-53ec-8857-002b1cd1fcd4",
+      "rolled_back": false,
+      "symptoms_before": {
+        "amount_difference": 17.25,
+        "queue_depth": 6,
+        "source_count": 3
+      },
+      "symptoms_after": {
+        "amount_difference": 0.0,
+        "queue_depth": 6,
+        "source_count": 3
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-18",
+      "diagnosis": "missing_movement",
+      "proposed_action": "sandbox:missing_movement",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "8ddfeb07-949d-5df4-a567-dc22c5a84226",
+      "rolled_back": false,
+      "symptoms_before": {
+        "movement_received": false,
+        "queue_depth": 19,
+        "source_count": 3
+      },
+      "symptoms_after": {
+        "movement_received": true,
+        "queue_depth": 19,
+        "source_count": 3
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-19",
+      "diagnosis": "model_error",
+      "proposed_action": "sandbox:model_error",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "0628d413-a318-5a03-b41e-9271dcf25615",
+      "rolled_back": false,
+      "symptoms_before": {
+        "execution_status": "exception",
+        "queue_depth": 10,
+        "source_count": 1
+      },
+      "symptoms_after": {
+        "execution_status": "succeeded",
+        "queue_depth": 10,
+        "source_count": 1
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-20",
+      "diagnosis": "incorrect_instructions",
+      "proposed_action": "sandbox:incorrect_instructions",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "67062b74-ba3c-5500-b4e5-3ad17c3879b9",
+      "rolled_back": false,
+      "symptoms_before": {
+        "instruction_match": false,
+        "cash_available": true,
+        "queue_depth": 3,
+        "source_count": 2
+      },
+      "symptoms_after": {
+        "instruction_match": true,
+        "cash_available": true,
+        "queue_depth": 3,
+        "source_count": 2
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-21",
+      "diagnosis": "missing_record",
+      "proposed_action": "sandbox:missing_record",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "4deee857-44db-59ab-a806-fc1bd55c2847",
+      "rolled_back": false,
+      "symptoms_before": {
+        "left_present": true,
+        "right_present": false,
+        "queue_depth": 21,
+        "source_count": 2
+      },
+      "symptoms_after": {
+        "left_present": true,
+        "right_present": true,
+        "queue_depth": 21,
+        "source_count": 2
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-22",
+      "diagnosis": "unmatched_margin_call",
+      "proposed_action": "sandbox:unmatched_margin_call",
+      "attempts": 0,
+      "status": "awaiting_approval",
+      "sandbox_only": true,
+      "idempotency_key": "55dbf9ba-8e17-598a-ac01-84a805c8cbb6",
+      "rolled_back": false
+    },
+    {
+      "incident_id": "incident-23",
+      "diagnosis": "invalid_output",
+      "proposed_action": "sandbox:invalid_output",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "eb29d593-3815-5a0c-8d2b-c7d77df56caf",
+      "rolled_back": false,
+      "symptoms_before": {
+        "output_validation": "failed",
+        "queue_depth": 9,
+        "source_count": 1
+      },
+      "symptoms_after": {
+        "output_validation": "passed",
+        "queue_depth": 9,
+        "source_count": 1
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-24",
+      "diagnosis": "insufficient_funds",
+      "proposed_action": "sandbox:insufficient_funds",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "1ee52bfd-d6e2-5947-b2b2-8290a45c10c4",
+      "rolled_back": false,
+      "symptoms_before": {
+        "instruction_match": true,
+        "cash_available": false,
+        "queue_depth": 15,
+        "source_count": 1
+      },
+      "symptoms_after": {
+        "instruction_match": true,
+        "cash_available": true,
+        "queue_depth": 15,
+        "source_count": 1
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-25",
+      "diagnosis": "duplicate_transaction",
+      "proposed_action": "sandbox:duplicate_transaction",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "a7a6b1d1-c486-5dab-9b7c-52fd3a122526",
+      "rolled_back": false,
+      "symptoms_before": {
+        "left_count": 2,
+        "right_count": 1,
+        "queue_depth": 25,
+        "source_count": 2
+      },
+      "symptoms_after": {
+        "left_count": 1,
+        "right_count": 1,
+        "queue_depth": 25,
+        "source_count": 2
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-26",
+      "diagnosis": "disputed_valuation",
+      "proposed_action": "sandbox:disputed_valuation",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "65777cf3-d083-5b4e-9bfb-a73d751f4d76",
+      "rolled_back": false,
+      "symptoms_before": {
+        "valuation_disputed": true,
+        "queue_depth": 27,
+        "source_count": 1
+      },
+      "symptoms_after": {
+        "valuation_disputed": false,
+        "queue_depth": 27,
+        "source_count": 1
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-27",
+      "diagnosis": "missing_market_data",
+      "proposed_action": "sandbox:missing_market_data",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "05427def-3a33-5934-a028-9995c44293b3",
+      "rolled_back": false,
+      "symptoms_before": {
+        "required_mark_present": false,
+        "queue_depth": 18,
+        "source_count": 3
+      },
+      "symptoms_after": {
+        "required_mark_present": true,
+        "queue_depth": 18,
+        "source_count": 3
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-28",
+      "diagnosis": "missing_confirmation",
+      "proposed_action": "sandbox:missing_confirmation",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "7c2e6157-d260-50e8-ab34-0611d9380563",
+      "rolled_back": false,
+      "symptoms_before": {
+        "instruction_match": true,
+        "confirmation_received": false,
+        "queue_depth": 16,
+        "source_count": 1
+      },
+      "symptoms_after": {
+        "instruction_match": true,
+        "confirmation_received": true,
+        "queue_depth": 16,
+        "source_count": 1
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-29",
+      "diagnosis": "timing_difference",
+      "proposed_action": "sandbox:timing_difference",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "160f0412-b080-55ba-8957-703d5722c471",
+      "rolled_back": false,
+      "symptoms_before": {
+        "left_time_offset_minutes": 7,
+        "queue_depth": 3,
+        "source_count": 2
+      },
+      "symptoms_after": {
+        "left_time_offset_minutes": 0,
+        "queue_depth": 3,
+        "source_count": 2
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-30",
+      "diagnosis": "eligibility_failure",
+      "proposed_action": "sandbox:eligibility_failure",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "9798f14f-2759-5ab7-b588-731c548d5458",
+      "rolled_back": false,
+      "symptoms_before": {
+        "eligible": false,
+        "queue_depth": 20,
+        "source_count": 2
+      },
+      "symptoms_after": {
+        "eligible": true,
+        "queue_depth": 20,
+        "source_count": 2
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-31",
+      "diagnosis": "stale_input",
+      "proposed_action": "sandbox:stale_input",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "be471595-04e5-5e96-aba3-c378aab7fbf6",
+      "rolled_back": false,
+      "symptoms_before": {
+        "input_age_minutes": 143,
+        "queue_depth": 25,
+        "source_count": 1
+      },
+      "symptoms_after": {
+        "input_age_minutes": 0,
+        "queue_depth": 25,
+        "source_count": 1
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-32",
+      "diagnosis": "counterparty_discrepancy",
+      "proposed_action": "sandbox:counterparty_discrepancy",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "a5805d2d-6104-5e05-9ad3-eb98d99bcd4f",
+      "rolled_back": false,
+      "symptoms_before": {
+        "instruction_match": false,
+        "confirmation_received": true,
+        "queue_depth": 12,
+        "source_count": 3
+      },
+      "symptoms_after": {
+        "instruction_match": true,
+        "confirmation_received": true,
+        "queue_depth": 12,
+        "source_count": 3
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-33",
+      "diagnosis": "incorrect_mapping",
+      "proposed_action": "sandbox:incorrect_mapping",
+      "attempts": 0,
+      "status": "awaiting_approval",
+      "sandbox_only": true,
+      "idempotency_key": "bc92d255-4859-5ab5-94bd-ab434d0d6657",
+      "rolled_back": false
+    },
+    {
+      "incident_id": "incident-34",
+      "diagnosis": "incorrect_haircut",
+      "proposed_action": "sandbox:incorrect_haircut",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "ae1033c5-9a53-5575-8922-11711c5c9de5",
+      "rolled_back": false,
+      "symptoms_before": {
+        "haircut_applied": 0.08,
+        "haircut_expected": 0.12,
+        "queue_depth": 29,
+        "source_count": 3
+      },
+      "symptoms_after": {
+        "haircut_applied": 0.12,
+        "haircut_expected": 0.12,
+        "queue_depth": 29,
+        "source_count": 3
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-35",
+      "diagnosis": "schema_change",
+      "proposed_action": "sandbox:schema_change",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "9e4d3b39-6f92-535b-92c9-ccf8abac5464",
+      "rolled_back": false,
+      "symptoms_before": {
+        "schema_version": "new",
+        "consumer_version": "old",
+        "queue_depth": 2,
+        "source_count": 2
+      },
+      "symptoms_after": {
+        "schema_version": "new",
+        "consumer_version": "new",
+        "queue_depth": 2,
+        "source_count": 2
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-36",
+      "diagnosis": "upstream_failure",
+      "proposed_action": "sandbox:upstream_failure",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "1a8383ec-ace0-59c6-8e34-202e89d6fd0f",
+      "rolled_back": false,
+      "symptoms_before": {
+        "upstream_status": "failed",
+        "queue_depth": 5,
+        "source_count": 3
+      },
+      "symptoms_after": {
+        "upstream_status": "recovered",
+        "queue_depth": 5,
+        "source_count": 3
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-37",
+      "diagnosis": "economic_discrepancy",
+      "proposed_action": "sandbox:economic_discrepancy",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "60ea0aa5-304c-5dd6-a0f0-2530f29548e6",
+      "rolled_back": false,
+      "symptoms_before": {
+        "amount_difference": 17.25,
+        "queue_depth": 22,
+        "source_count": 1
+      },
+      "symptoms_after": {
+        "amount_difference": 0.0,
+        "queue_depth": 22,
+        "source_count": 1
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-38",
+      "diagnosis": "missing_movement",
+      "proposed_action": "sandbox:missing_movement",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "c1d49dcc-411c-5f11-8f74-c65817ccf037",
+      "rolled_back": false,
+      "symptoms_before": {
+        "movement_received": false,
+        "queue_depth": 26,
+        "source_count": 3
+      },
+      "symptoms_after": {
+        "movement_received": true,
+        "queue_depth": 26,
+        "source_count": 3
+      },
+      "residual_diagnosis": null
+    },
+    {
+      "incident_id": "incident-39",
+      "diagnosis": "dependency_failure",
+      "proposed_action": "sandbox:dependency_failure",
+      "attempts": 1,
+      "status": "verified",
+      "sandbox_only": true,
+      "idempotency_key": "61e21987-25f9-5653-8e04-6a7175d3eeaa",
+      "rolled_back": false,
+      "symptoms_before": {
+        "dependency_status": "unavailable",
+        "queue_depth": 27,
+        "source_count": 2
+      },
+      "symptoms_after": {
+        "dependency_status": "available",
+        "queue_depth": 27,
+        "source_count": 2
+      },
+      "residual_diagnosis": null
+    }
+  ],
+  "note": "The transparent rule baseline is deterministic. Repairs are verified against symptom changes in the simulated operations system. Hidden causes are used only to score diagnosis accuracy."
+}
