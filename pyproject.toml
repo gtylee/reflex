@@ -21,6 +21,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8.3"]
 
+[project.entry-points."reflex_intelligence.functions"]
+portfolio-news = "reflex.experiments.portfolio_functions:portfolio_functions"
+
 [project.scripts]
 reflex = "reflex.cli:main"
 

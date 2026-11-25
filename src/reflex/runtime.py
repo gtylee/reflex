@@ -17,43 +17,10 @@ from reflex.core.models.events import ActionEvent, ActionResultEvent, Event, sta
 from reflex.core.storage import EventStore, StateStore
 from .contracts.reactions import FunctionRef, ReactionDefinition, ReactionEdge, ReactionNode
 from .contracts.schemas import SchemaRegistry
+from .registry import ConditionFunction, FunctionRegistry, FunctionSpec, ReactionFunction
 
 
-ReactionFunction = Callable[[Event, dict[str, dict[str, Any]]], Iterable[Event]]
-ConditionFunction = Callable[[Event, dict[str, dict[str, Any]]], bool]
 ActionFunction = Callable[[dict[str, Any]], dict[str, Any] | None]
-
-
-@dataclass(frozen=True)
-class FunctionSpec:
-    ref: FunctionRef
-    function: ReactionFunction | ConditionFunction
-    description: str = ""
-    deterministic: bool = True
-
-
-class FunctionRegistry:
-    """Only explicitly registered, versioned functions can run in a Reaction."""
-
-    def __init__(self):
-        self._functions: dict[str, FunctionSpec] = {}
-
-    def register(self, ref: FunctionRef, function: ReactionFunction | ConditionFunction,
-                 *, description: str = "", deterministic: bool = True) -> None:
-        prior = self._functions.get(ref.ref)
-        spec = FunctionSpec(ref=ref, function=function, description=description, deterministic=deterministic)
-        if prior is not None and prior != spec:
-            raise ValueError(f"function {ref.ref!r} is already registered")
-        self._functions[ref.ref] = spec
-
-    def resolve(self, ref: FunctionRef) -> FunctionSpec:
-        try:
-            spec = self._functions[ref.ref]
-        except KeyError as error:
-            raise KeyError(f"unregistered function {ref.ref!r}") from error
-        if spec.ref.kind != ref.kind:
-            raise ValueError(f"function kind mismatch for {ref.ref!r}")
-        return spec
 
 
 @dataclass(frozen=True)
@@ -239,6 +206,9 @@ class ReactionRuntime:
         if saved and saved.get("status") in {"succeeded", "failed", "budget_exceeded"}:
             return ReactionRun.model_validate(saved)
 
+        # Resolve even downstream dependencies before a node can write state or request an action.
+        # A missing library can be loaded and the same trigger submitted again.
+        bound = self.functions.bind(definition)
         started = datetime.now(timezone.utc)
         pinned_state = state_snapshot if state_snapshot is not None else self._capture_state(definition)
         state_hash = sha256(json.dumps(pinned_state, sort_keys=True, separators=(",", ":"), default=str).encode()).hexdigest()
@@ -261,6 +231,16 @@ class ReactionRuntime:
             errors.append("missing Reaction state requirement(s): " + ", ".join(missing_definition_state))
             queue.clear()
 
+        def condition_matches(ref: str | None, item: Event, snapshot: dict[str, Any]) -> bool:
+            if ref is None:
+                return True
+            versions.add(ref)
+            try:
+                return bool(bound[ref].function(item, snapshot))
+            except Exception as error:
+                errors.append(f"condition {ref} on {item.event_id}: {error}")
+                return False
+
         while queue:
             node_id, current = queue.popleft()
             node = node_by_id[node_id]
@@ -274,12 +254,12 @@ class ReactionRuntime:
             if node.accepts_event_types and not self._matches(node.accepts_event_types, current.event_type):
                 continue
             snapshot = self._merged_snapshot(pinned_state)
-            if not self._condition(node.condition_ref, current, snapshot):
+            if not condition_matches(node.condition_ref, current, snapshot):
                 continue
             if any(not self._state_requirement(requirement) for requirement in node.state_requirements):
                 errors.append(f"node {node.node_id}: missing state requirement")
                 continue
-            spec = self.functions.resolve(node.function)
+            spec = bound[node.function.ref]
             versions.add(spec.ref.ref)
             if node.input_schema_refs:
                 if current.schema_ref not in node.input_schema_refs:
@@ -348,7 +328,7 @@ class ReactionRuntime:
                     for edge in node.edges:
                         if edge.event_types and not self._matches(edge.event_types, output.event_type):
                             continue
-                        if self._condition(edge.condition_ref, output, self._merged_snapshot(pinned_state)):
+                        if condition_matches(edge.condition_ref, output, self._merged_snapshot(pinned_state)):
                             queue.append((edge.target, output))
                     if self._matches(definition.subscriptions, output.event_type):
                         for entry_node in self._entry_nodes(node_by_id, definition, output.event_type):
@@ -369,17 +349,6 @@ class ReactionRuntime:
         self.state.set("execution", run_key, result.model_dump(mode="json"),
                        f"Reaction {definition.reaction_id}@{definition.version} {status}")
         return result
-
-    def _condition(self, ref: str | None, event: Event, snapshot: dict[str, dict[str, Any]]) -> bool:
-        if ref is None:
-            return True
-        # Conditions are also versioned/allowlisted functions with kind='condition'.
-        for spec in self.functions._functions.values():
-            if spec.ref.ref == ref:
-                if spec.ref.kind != "condition":
-                    raise ValueError(f"condition reference {ref!r} is not registered as a condition")
-                return bool(spec.function(event, snapshot))
-        raise KeyError(f"unregistered condition {ref!r}")
 
     def _state_requirement(self, requirement: str) -> bool:
         if ":" in requirement:

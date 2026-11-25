@@ -276,3 +276,65 @@ Generated local stores and artifacts are intended for inspection and experiments
 | `src/reflex/experiments/local_discovery.py` | Example workflow composing transaction profile with core APIs |
 | `src/reflex/core/cli.py` | Reusable event, SQL Lens, and state commands |
 | `src/reflex/runtime.py` | Reaction matching and registered action execution boundary |
+
+## Registering a library while REFLEX is running
+
+A Reaction refers to each lens or policy by its function ID, version, and kind.
+The host can add an installed library to the registry used by an existing
+`ReactionRuntime`. For example, the portfolio provider exports three lenses
+and one policy. The two skills that use the demo's local stores are bound by
+the application.
+
+```python
+# runtime is an existing ReactionRuntime.
+runtime.functions.available_libraries()            # Names advertised by installed packages
+refs = runtime.functions.load_library("portfolio-news")
+print([ref.ref for ref in refs])                  # Exact versions available to graphs
+```
+
+To publish a provider from your own Python package, declare a
+[Python package entry point](https://packaging.python.org/en/latest/specifications/entry-points/).
+
+```toml
+[project.entry-points."reflex_intelligence.functions"]
+service-review = "service_review.functions:provide"
+```
+
+In that package, a provider returns the functions it supplies. For example,
+this policy records a review request for a flagged REFLEX observation.
+
+```python
+from reflex.contracts.reactions import FunctionRef
+from reflex.core.models.events import ObservationEvent, stable_id
+from reflex.registry import FunctionSpec
+
+def request_review(event, snapshot):
+    if not event.payload["value"]["is_anomaly"]:
+        return []
+    return [ObservationEvent(
+        event_id=stable_id("service.review@1", event.event_id),
+        event_type="service.review_requested", event_time=event.event_time,
+        entity_ids=event.entity_ids, parent_event_ids=(event.event_id,),
+        source="policy:service.review@1", lens_id="service.review", lens_version="1",
+        subject=event.subject, payload={"reason": "calibrated cutoff crossed"},
+    )]
+
+def provide():
+    return [FunctionSpec(FunctionRef(function_id="service.review", version="1",
+                                     kind="policy"), request_review)]
+```
+
+Install the provider in the host environment and call
+`runtime.functions.load_library("service-review")`. A graph can now use
+`service.review@1` on a node that accepts statistical observation events.
+A graph author chooses when that policy runs. To change its
+behavior, publish another function version and reference it from a new graph
+version. Use stable callable objects when loading the same version repeatedly.
+
+Loading is explicit and local to each registry. The host chooses trusted
+packages because calling a provider executes Python in the host process.
+Registration publishes all its functions together. A new run resolves every
+node and condition before executing the graph. A missing dependency can be
+loaded and the same trigger retried. Replay after a restart requires the
+host to load the original versions again. Action permissions and schemas
+are configured separately by the host.

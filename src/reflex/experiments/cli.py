@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 from typing import Any
 
-from .portfolio_benchmark import append_run, benchmark_manifest, report, run_reflex_variant
+from .portfolio_benchmark import append_run, benchmark_manifest, report as portfolio_report, run_reflex_variant
 from .news_demo import run_news_demo
 from .adapters import GaussianMixtureAdapter, IsolationForestAdapter, default_phase_one_adapters
 from .generators import SCENARIOS, default_configs, generate_scenario
@@ -128,7 +128,8 @@ def main(argv: list[str] | None = None) -> int:
     if command_args and command_args[0] in {"demo", "generate", "discover", "discovery-benchmark"}:
         from .discovery_cli import main as discovery_main
 
-        return discovery_main(command_args)
+        alias = {"discover": "run", "discovery-benchmark": "benchmark"}
+        return discovery_main([alias.get(command_args[0], command_args[0]), *command_args[1:]])
     if command_args and command_args[0] in {"ingest-bpi", "ingest-loghub"}:
         from .log_cli import main as ingestion_main
 
@@ -296,7 +297,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(run_reflex_variant(args.protocol, args.out, seed=args.seed), indent=2))
         return 0
     if args.benchmark_command == "report":
-        print(json.dumps(report(args.protocol), indent=2))
+        print(json.dumps(portfolio_report(args.protocol), indent=2))
         return 0
     raise ValueError(f"unsupported command: {args.command}")
 
