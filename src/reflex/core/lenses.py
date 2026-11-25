@@ -11,14 +11,6 @@ from .models.lenses import LensKind, LensVersion, Observation
 from .storage import EventStore
 
 
-DEFAULT_SQL = """
-SELECT event_id, event_type, event_time, entity_ids, attributes
-FROM events
-WHERE TRY_CAST(json_extract_string(attributes, '$.amount') AS DOUBLE) >= 4000
-  AND event_kind = 'native'
-""".strip()
-
-
 class SqlLens:
     """A named SQL query that turns matching event rows into observations.
 
@@ -65,3 +57,15 @@ class SqlLens:
                 provenance={"sql": self.definition.code, "source": "duckdb_event_ledger"},
             ))
         return result
+
+
+def __getattr__(name: str):
+    """Expose the old transaction example query only for compatibility imports."""
+    if name != "DEFAULT_SQL":
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    from reflex.experiments.transaction_lenses import TRANSACTION_HIGH_AMOUNT_SQL
+
+    return TRANSACTION_HIGH_AMOUNT_SQL
+
+
+__all__ = ["SqlLens", "DEFAULT_SQL"]

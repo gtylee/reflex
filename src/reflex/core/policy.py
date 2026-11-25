@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import time
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Callable
 from uuid import uuid4
 
 from .models.lenses import CandidateStatus, LensCandidate, Observation
@@ -183,16 +183,23 @@ class LocalInvestigator:
     outputs. They are not data-calibrated beliefs or validated explanations.
     """
 
-    def __init__(self, tools: BoundedTools, state: StateStore):
-        """Bind the investigator to bounded tools and the local state store."""
+    def __init__(self, tools: BoundedTools, state: StateStore, *,
+                 feature_selector: Callable[[Observation], str | None] | None = None):
+        """Bind bounded tools and an optional profile-specific feature choice.
+
+        The core does not assume which feature is meaningful for a domain. A
+        profile may inject a selector; when none is supplied, investigation
+        still records evidence and hypotheses but skips the cohort comparison.
+        """
         self.tools, self.state = tools, state
+        self.feature_selector = feature_selector
 
     def investigate(self, observation: Observation, related: list[Observation] | None = None) -> dict[str, Any]:
         """Gather a bounded evidence packet and leave it for human review.
 
         The operation records supporting observations, nearby native events,
-        a time-aware operational snapshot, a fixed cohort summary, and rival
-        hypotheses. It never marks a hypothesis as verified.
+        a time-aware operational snapshot, an optional profile-selected cohort
+        summary, and rival hypotheses. It never marks a hypothesis as verified.
         """
         started = time.perf_counter()
         self.tools.trace = []
@@ -202,12 +209,26 @@ class LocalInvestigator:
         support = set(observation.supporting_event_ids)
         evidence_events = [event for event in nearby if event["event_id"] in support]
         operational_state = self.tools.inspect_state("operational", as_of=observation.window_end)
-        feature = "manual_channel_share" if observation.observation_type == "autoencoder_reconstruction_score" else "mean_amount"
-        experiment = self.tools.run_experiment(related, feature=feature)
         features = observation.value.get("features", {}) if isinstance(observation.value, dict) else {}
+        feature = self.feature_selector(observation) if self.feature_selector else None
+        if feature and feature in features:
+            experiment = self.tools.run_experiment(related, feature=feature)
+        else:
+            experiment = {
+                "experiment": "cohort_mean_spread",
+                "feature": feature,
+                "cohorts": {},
+                "mean_spread": 0.0,
+                "skipped": "no profile selected an available numeric feature",
+            }
+        feature_hypothesis = (
+            f"A change in {feature} is specific to a cohort."
+            if feature else "A domain-relevant feature may have shifted for this subject."
+        )
         candidates = [
-            Hypothesis(statement=f"A change in {feature} is specific to a cohort.", supporting_evidence=(observation.observation_id,), confidence=0.35),
-            Hypothesis(statement="The score is explained by ordinary activity volume or a regime shift.", contradicting_evidence=(observation.observation_id,), confidence=0.25),
+            Hypothesis(statement=feature_hypothesis, supporting_evidence=(observation.observation_id,), confidence=0.35),
+            Hypothesis(statement="The score reflects ordinary variation or a changed operating regime.",
+                       contradicting_evidence=(observation.observation_id,), confidence=0.25),
         ]
         for hypothesis in candidates:
             self.tools.record_hypothesis(hypothesis)

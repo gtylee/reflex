@@ -209,8 +209,30 @@
       <a href="#data">Data sources</a>
       <a href="#extend">Extend REFLEX</a>
       <a href="#troubleshoot">Troubleshooting</a>
+      <a href="#code-boundary">Code boundary</a>
       <a href="#code-map">Code map</a>
     </nav>
+
+    <section id="code-boundary" aria-labelledby="code-boundary-title" style="margin-top:0">
+      <h2 id="code-boundary-title">Reusable core and experiments</h2>
+      <p class="section-intro">The core handles common event, storage, Lens, and policy work. Experiment profiles decide how one dataset is read, which domain features to build, and how to evaluate a particular study.</p>
+      <div class="two-col">
+        <article class="lane">
+          <span class="label">Reusable</span>
+          <h3><code>src/reflex/core/</code></h3>
+          <p>Works with normalized <code>Event</code> and <code>EventWindowFeatures</code> records. It stores evidence, fits and scores against a supplied feature schema, runs caller-defined SQL Lenses, and applies bounded policy tools. It does not assume transaction fields such as amount or channel.</p>
+          <pre><code>uv run reflex replay --sql-file lens.sql</code></pre>
+        </article>
+        <article class="lane">
+          <span class="label">Dataset or study-specific</span>
+          <h3><code>src/reflex/experiments/</code></h3>
+          <p>Contains BPI and Loghub readers, transaction features, sample SQL, synthetic data and labels, benchmark protocols, and report commands. These modules compose the core for a specific example and may carry assumptions that do not fit other applications.</p>
+          <pre><code>uv run reflex experiments discovery demo --out .reflex-demo
+uv run reflex experiments transaction-replay</code></pre>
+        </article>
+      </div>
+      <p class="caption">Older top-level demo, benchmark, news-adapter, and core import paths remain as compatibility routes. New code should use the explicit <code>reflex.experiments</code> modules for examples.</p>
+    </section>
 
     <section id="paths" aria-labelledby="paths-title" style="margin-top:0">
       <h2 id="paths-title">Two workflows, one evidence trail</h2>
@@ -265,7 +287,7 @@
           </article>
           <article class="card">
             <h4>Worked input from the synthetic news demo</h4>
-            <p>This is the shape of the Northstar story event used by <code>reflex demo-news</code>. Some optional metadata is omitted for readability.</p>
+            <p>This is the shape of the Northstar story event used by <code>reflex experiments demo-news</code>. Some optional metadata is omitted for readability.</p>
             <pre><code>{
   "event_id": "news-100-initial",
   "event_type": "news.story",
@@ -294,7 +316,7 @@
           <article class="card">
             <h4>Three kinds of checks in this project</h4>
             <ul class="checklist">
-              <li><strong>Deterministic SQL Lens:</strong> the default rule selects native events with an <code>amount</code> of at least 4,000 using a bounded local query.</li>
+              <li><strong>Deterministic SQL Lens:</strong> the reusable core runs a caller-supplied bounded query. The transaction experiment includes an example that selects native events with an <code>amount</code> of at least 4,000.</li>
               <li><strong>Statistical Lenses:</strong> fit or load model artifacts from time-window features, calibrate thresholds on a separate interval, then score later windows.</li>
               <li><strong>Reaction function:</strong> run a registered, versioned function on a matching event and the declared state snapshot.</li>
             </ul>
@@ -449,7 +471,7 @@ arguments: story ID, revision, manager ID, headline</code></pre>
 
     <section id="story-example" aria-labelledby="story-title">
       <h2 id="story-title">Worked example: a synthetic news story</h2>
-      <p class="section-intro">The repository's <code>reflex demo-news</code> command shows how a Reaction joins the pieces. It uses invented stories, an invented portfolio, and a local simulated publisher.</p>
+      <p class="section-intro">The repository's <code>reflex experiments demo-news</code> command shows how a Reaction joins the pieces. It uses invented stories, an invented portfolio, and a local simulated publisher.</p>
       <div class="two-col">
         <article class="card">
           <h3>1. The input event</h3>
@@ -520,7 +542,7 @@ arguments: story ID, revision, manager ID, headline</code></pre>
         <article class="lane">
           <span class="label">Deterministic Lens</span>
           <h3>SQL threshold</h3>
-          <p>The default SQL Lens selects native events whose <code>amount</code> is at least 4,000. It runs one bounded <code>SELECT</code> or <code>WITH</code> query against the registered local <code>events</code> relation.</p>
+          <p>The reusable SQL Lens runs a query supplied by the caller. The transaction experiment's example selects native events whose <code>amount</code> is at least 4,000. Queries run through one bounded <code>SELECT</code> or <code>WITH</code> against the local <code>events</code> relation.</p>
         </article>
         <article class="lane">
           <span class="label">Statistical Lenses</span>
@@ -624,38 +646,41 @@ arguments: story ID, revision, manager ID, headline</code></pre>
 
     <section id="commands" aria-labelledby="commands-title">
       <h2 id="commands-title">Command-line walkthrough</h2>
-      <p class="section-intro">Install with <code>uv</code>, then use one command name for all workflows. Add <code>--help</code> to a command or group to see its options.</p>
+      <p class="section-intro">Install with <code>uv</code>. Reusable event-store operations are direct commands; dataset profiles and demonstrations are grouped under <code>reflex experiments</code>. Add <code>--help</code> to a command or group to see its options.</p>
       <p class="caption">The project supports Python 3.12–3.14; these examples use Python 3.13.</p>
       <pre><code>uv sync --python 3.13 --extra dev
 uv run reflex --help
-uv run reflex demo-news --out .reflex-news-demo</code></pre>
+uv run reflex experiments demo-news --out .reflex-news-demo</code></pre>
       <details open>
         <summary>Run synthetic discovery</summary>
         <div class="details-body">
           <p>For a one-command run that generates data, discovers patterns, and scores them after prediction:</p>
-          <pre><code>uv run reflex demo --out .reflex-demo --seed 11</code></pre>
+          <pre><code>uv run reflex experiments discovery demo --out .reflex-demo --seed 11</code></pre>
           <p>This writes a dataset manifest, event and state databases, model artifacts, and <code>latest-run.json</code>. The default evaluator labels are in a sibling <code>.reflex-demo-evaluator/</code> directory.</p>
           <p>To keep the discovery command label-blind, generate first and omit the evaluator directory when discovering:</p>
-          <pre><code>uv run reflex generate --out .reflex-data --seed 11 --entities 80 --days 30
-uv run reflex discover --data-dir .reflex-data</code></pre>
+          <pre><code>uv run reflex experiments discovery generate --out .reflex-data --seed 11 --entities 80 --days 30
+uv run reflex experiments discovery run --data-dir .reflex-data</code></pre>
         </div>
       </details>
       <details>
         <summary>Load, replay, inspect, or export event data</summary>
         <div class="details-body">
           <pre><code># Ingest a local dataset file
-uv run reflex ingest-bpi ./data/bpi.csv --db events.duckdb
-uv run reflex ingest-loghub ./data/logs.csv --db events.duckdb
+uv run reflex experiments ingest-bpi ./data/bpi.csv --db events.duckdb
+uv run reflex experiments ingest-loghub ./data/logs.csv --db events.duckdb
 
-# Apply the default high-amount SQL Lens in five-day batches
-uv run reflex replay --db events.duckdb --state state.sqlite --batch-days 5
+# Run a generic, caller-defined SQL Lens in five-day batches
+uv run reflex replay --db events.duckdb --state state.sqlite --batch-days 5 --sql-file lens.sql
+
+# Or use the transaction experiment's example Lens
+uv run reflex experiments transaction-replay --db events.duckdb --state state.sqlite
 
 # Inspect a state namespace and its audit history
 uv run reflex state --db state.sqlite --namespace discovery --audit
 
 # Export an event-time-sorted Parquet snapshot
 uv run reflex export-parquet --db events.duckdb --out events.parquet</code></pre>
-          <p>BPI and Loghub inputs are local files that you acquire separately. The replay command requires a populated event database; its default SQL Lens flags native events with an amount of at least 4,000.</p>
+          <p>BPI and Loghub inputs are local files that you acquire separately. Generic replay requires a populated event database and a supplied SQL file. The prepared transaction example uses the high-amount Lens from the experiment profile.</p>
         </div>
       </details>
       <details>
@@ -717,18 +742,18 @@ uv run reflex experiments performance --sizes 1000,10000,100000 \
         <summary>Understand the two comparison protocols</summary>
         <div class="details-body">
           <ul>
-            <li><code>reflex benchmark</code> is the portfolio-news A/B/C protocol. The input, objective, and budgets are shared. The repository can run C; A and B require actual external runs.</li>
-            <li><code>reflex discovery-benchmark</code> is a separate manual A–E protocol. Its synthetic pilot measures REFLEX statistical Lenses; it does not run five real agent variants or prove that state improved discovery.</li>
+            <li><code>reflex experiments portfolio-benchmark</code> is the portfolio-news A/B/C protocol. The input, objective, and budgets are shared. The repository can run C; A and B require actual external runs.</li>
+            <li><code>reflex experiments discovery benchmark</code> is a separate manual A–E protocol. Its synthetic pilot measures REFLEX statistical Lenses; it does not run five real agent variants or prove that state improved discovery.</li>
             <li><code>reflex experiments heldout</code> evaluates C on new synthetic seeds. It does not compare REFLEX with an unrun baseline.</li>
           </ul>
           <pre><code># A/B/C portfolio-news protocol
-uv run reflex benchmark init --out reflex-benchmark.json --seeds 11,23,37
-uv run reflex benchmark run-c --protocol reflex-benchmark.json \
+uv run reflex experiments portfolio-benchmark init --out reflex-benchmark.json --seeds 11,23,37
+uv run reflex experiments portfolio-benchmark run-c --protocol reflex-benchmark.json \
   --out .reflex-benchmark-c --seed 11
-uv run reflex benchmark report --protocol reflex-benchmark.json
+uv run reflex experiments portfolio-benchmark report --protocol reflex-benchmark.json
 
 # Separate repeated-seed synthetic discovery pilot
-uv run reflex discovery-benchmark pilot --out reports/reflex-pilot \
+uv run reflex experiments discovery benchmark pilot --out reports/reflex-pilot \
   --seeds 11,23,37</code></pre>
         </div>
       </details>
@@ -797,7 +822,7 @@ uv run reflex discovery-benchmark pilot --out reports/reflex-pilot \
           </ol>
         </article>
       </div>
-      <p class="caption">The sample Reaction is in <code>src/reflex/news_demo.py</code>; shared scenario generation is in <code>src/reflex/experiments/generators.py</code>.</p>
+      <p class="caption">The sample Reaction is in <code>src/reflex/experiments/news_demo.py</code>; shared scenario generation is in <code>src/reflex/experiments/generators.py</code>.</p>
     </section>
 
     <section id="troubleshoot" aria-labelledby="troubleshoot-title">
@@ -835,14 +860,17 @@ uv run reflex discovery-benchmark pilot --out reports/reflex-pilot \
             <tr><td><code>src/reflex/core/models/policy.py</code></td><td>Policy decisions and evidence-backed hypotheses.</td></tr>
             <tr><td><code>src/reflex/core/models/features.py</code></td><td>Typed summaries of entity event windows.</td></tr>
             <tr><td><code>src/reflex/core/storage.py</code></td><td>DuckDB event ledger and SQLite state/audit storage.</td></tr>
-            <tr><td><code>src/reflex/core/features.py</code></td><td>Chronological event and entity-window feature construction.</td></tr>
+            <tr><td><code>src/reflex/core/features.py</code></td><td>Generic conversion from feature rows to a numeric matrix.</td></tr>
             <tr><td><code>src/reflex/core/discovery.py</code></td><td>Statistical Lens fitting, calibration, artifacts, and scoring.</td></tr>
             <tr><td><code>src/reflex/core/policy.py</code></td><td>Discovery policy, bounded tools, and local investigation.</td></tr>
             <tr><td><code>src/reflex/contracts/reactions.py</code></td><td>Function references and versioned Reaction graph definitions.</td></tr>
             <tr><td><code>src/reflex/contracts/schemas.py</code></td><td>Exploratory observation and schema registry.</td></tr>
             <tr><td><code>src/reflex/runtime.py</code></td><td>Reaction execution, permission checks, replay, and action outcomes.</td></tr>
-            <tr><td><code>src/reflex/news_demo.py</code></td><td>End-to-end synthetic portfolio-news Reaction example.</td></tr>
-            <tr><td><code>src/reflex/experiments/</code></td><td>Scenario generation, adapters, metrics, held-out runs, and dataset replay.</td></tr>
+            <tr><td><code>src/reflex/experiments/transaction_features.py</code></td><td>Transaction-specific event and window features.</td></tr>
+            <tr><td><code>src/reflex/experiments/news_adapters.py</code></td><td>Example adapter for normalized news records.</td></tr>
+            <tr><td><code>src/reflex/experiments/news_demo.py</code></td><td>End-to-end synthetic portfolio-news Reaction example.</td></tr>
+            <tr><td><code>src/reflex/experiments/portfolio_benchmark.py</code></td><td>Portfolio-news benchmark protocol and report.</td></tr>
+            <tr><td><code>src/reflex/experiments/</code></td><td>Scenario generation, dataset adapters, metrics, demos, and reports.</td></tr>
           </tbody>
         </table>
       </div>

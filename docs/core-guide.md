@@ -47,7 +47,7 @@ Most domain records inherit from `FrozenModel`. Pydantic validates their shape, 
 
 ## Event identity, time, and lineage
 
-`Event` timestamps and `Observation` window bounds must include a timezone, and the models normalize them to UTC. The feature-window builder also requires aware start and end times. Event-time windows use half-open bounds: an event is included when `start <= event_time < end`. Adjacent windows therefore do not double-count an event at their shared boundary.
+`Event` timestamps and `Observation` window bounds must include a timezone, and the models normalize them to UTC. Feature profiles should also require aware start and end times. Event-time windows use half-open bounds: an event is included when `start <= event_time < end`. Adjacent windows therefore do not double-count an event at their shared boundary.
 
 Use a fresh UUID for a new fact. Use `stable_id(...)` when replaying the same logical result must reproduce the same ID. For example, statistical observations derive their ID from lens ID, model version, subject, and window. The event store treats a repeated ID with identical content as an idempotent replay. Reusing that ID for different content raises an error.
 
@@ -64,14 +64,14 @@ These links support trace checks and replay. They do not prove that evidence cau
 
 ## Ingestion: convert a source without hiding its origin
 
-`core/ingestion.py` contains local-file adapters. `read_bpi2017` accepts the supported BPI CSV or XES/XES.GZ shapes. The case becomes the entity ID, the activity becomes the event type, and the remaining source columns stay in `attributes`. `read_loghub` accepts JSONL, CSV, and the common HDFS log line format. Both adapters preserve a file and row, line, trace, or event reference in provenance.
+The reusable ingestion contract is simply `EventStore.add_events(events)`. A source adapter belongs beside the dataset or application that needs it. The BPI and Loghub file readers are now in `reflex.experiments.log_adapters`: BPI cases map to entity IDs and activities to event types, while remaining source columns stay in `attributes`. The readers preserve file and row, line, trace, or event references in provenance.
 
 The adapters do not download data, infer business meaning, or repair arbitrary schemas. Add a source-specific adapter when the mapping is ambiguous. Keep the original field names where practical, document any normalization, and make entity and timestamp rules explicit. Validate the resulting event count and a few mapped records before using an unfamiliar source.
 
 Example:
 
 ```python
-from reflex.core.ingestion import read_bpi2017
+from reflex.experiments.log_adapters import read_bpi2017
 from reflex.core.storage import EventStore
 
 store = EventStore("events.duckdb")
@@ -100,25 +100,39 @@ Use `snapshot()` for current values. `snapshot_at(namespace, as_of)` selects the
 
 The stores are local single-machine components. Call `close()` when a process is finished with a store. The current implementation does not provide distributed transactions across DuckDB and SQLite, retention policies, multi-tenant access control, or a production backup strategy.
 
-## Features and time windows
+## Feature rows and experiment-owned windowing
 
-`build_entity_windows(events, start, end, window_days=5)` creates non-overlapping, event-time windows. It emits one row per entity that had at least one event in that interval. An event with multiple entity IDs contributes to each entity. Events without entity IDs use the synthetic subject `unassigned`.
+The core defines the `EventWindowFeatures` record and a generic `matrix(rows, names)` conversion. It does not decide how a domain's events should be grouped or what values count as useful features. Application code can build its own `EventWindowFeatures` rows from any source events and pass the chosen feature-name order to `fit_lenses`.
 
-`FEATURE_NAMES` defines the default statistical schema. It includes volume, amount, event timing and type mix, channel shares, peer volume, partner activity, and an amount/latency relationship. Many fields are tailored to the included transaction examples. Missing attributes currently default to zero or an `unknown` category in several calculations. That is a modeling choice, not a universal statement that the value was measured as zero.
+The current transaction experiment profile lives in `reflex.experiments.transaction_features`. It supplies `build_transaction_windows` and `TRANSACTION_FEATURE_NAMES`. These features assume fields such as amount, channel, region, and latency. Several absent numeric fields default to zero and absent categories to `unknown`. Those choices are specific to that profile, not core semantics.
 
-Before applying these defaults to another domain:
+When adding another domain profile, explicitly map its subject and time semantics, decide whether a missing measurement means zero or unknown, retain supporting event IDs, and document units. Pass its schema to fitting and reuse the same ordered schema at scoring time. The artifact stores this list so feature assumptions are visible.
 
-1. Map the source's entity and event time semantics.
-2. Decide whether missing values mean zero, unknown, or not applicable.
-3. Replace domain-specific features with features that describe that stream.
-4. Check support IDs and feature values on hand-reviewed windows.
-5. Freeze the feature schema with the model artifact so a later code change cannot silently reorder inputs.
+### Reusable core call
 
-Feature rows retain supporting event IDs. `matrix()` converts values in the declared feature order to a numeric array. Keep the same names and ordering for fitting and scoring.
+An application can supply any finite numeric feature schema. The core call does not import a dataset reader or assume that an attribute is named `amount`:
+
+```python
+from reflex.core.discovery import fit_lenses, score_rows
+from reflex.core.models.features import EventWindowFeatures
+
+feature_names = ("request_rate", "latency_p95", "error_share")
+
+# The application owns how events become these rows and their supporting IDs.
+training_rows: list[EventWindowFeatures] = build_rows(training_events)
+calibration_rows: list[EventWindowFeatures] = build_rows(calibration_events)
+holdout_rows: list[EventWindowFeatures] = build_rows(holdout_events)
+
+lenses = fit_lenses(training_rows, calibration_rows, "artifacts/service-v1",
+                    feature_names=feature_names)
+observations = score_rows(holdout_rows, lenses)
+```
+
+The named `build_rows` function is supplied by the application. REFLEX's transaction example is one such profile, located in `reflex.experiments.transaction_features`.
 
 ## Statistical discovery and the training boundary
 
-`fit_lenses(training_rows, calibration_rows, ...)` implements the current statistical path:
+`fit_lenses(training_rows, calibration_rows, ..., feature_names=...)` is a schema-driven statistical path:
 
 1. Fit `StandardScaler` using training rows only.
 2. Transform training and calibration rows using that fitted scaler.
@@ -127,6 +141,8 @@ Feature rows retain supporting event IDs. `matrix()` converts values in the decl
 5. Score calibration rows with both detectors.
 6. Set each detector's cutoff to the `1 - contamination` quantile of its calibration scores.
 7. Save model, preprocessing, feature schema, configuration, boundaries, and row signatures.
+
+If `feature_names` is omitted, the first training row supplies the insertion-ordered names. Application callers should pass an explicit schema rather than relying on dictionary order.
 
 `score_rows` applies the frozen scaler and models to later rows. It creates one `Observation` per lens per row. The autoencoder score is mean squared reconstruction residual. The Isolation Forest score is the negated `decision_function`, so larger values are more unusual. `is_anomaly` means only that the score is at or above the stored calibration cutoff.
 
@@ -140,19 +156,21 @@ Example with explicit chronological boundaries:
 
 ```python
 from reflex.core.discovery import fit_lenses, score_rows
-from reflex.core.features import build_entity_windows
+from reflex.experiments.transaction_features import build_transaction_windows, TRANSACTION_FEATURE_NAMES
 
-training = build_entity_windows(events, start=start, end=train_end)
-calibration = build_entity_windows(events, start=train_end, end=calibration_end)
-holdout = build_entity_windows(events, start=calibration_end, end=end)
+training = build_transaction_windows(events, start=start, end=train_end)
+calibration = build_transaction_windows(events, start=train_end, end=calibration_end)
+holdout = build_transaction_windows(events, start=calibration_end, end=end)
 
-lenses = fit_lenses(training, calibration, "artifacts/run-001", training_cutoff=train_end)
+lenses = fit_lenses(training, calibration, "artifacts/run-001",
+                    training_cutoff=train_end,
+                    feature_names=TRANSACTION_FEATURE_NAMES)
 observations = score_rows(holdout, lenses)
 ```
 
 ## Deterministic SQL lenses and candidate review
 
-`SqlLens` wraps a versioned SQL definition. `replay()` asks `EventStore` to execute the bounded query and converts each selected row into an `Observation` with the matching source event ID as evidence. SQL lenses are useful when the pattern is explicit and auditable, such as a threshold breach. They do not require model training.
+`SqlLens` wraps a versioned SQL definition. `replay()` asks `EventStore` to execute the bounded query and converts each selected row into an `Observation` with the matching source event ID as evidence. SQL lenses are useful when the pattern is explicit and auditable, such as a threshold breach. They do not require model training. The high-amount example query lives in `reflex.experiments.transaction_lenses`; there is no transaction default in the core Lens class.
 
 Proposed SQL lenses use a separate candidate lifecycle:
 
@@ -171,7 +189,7 @@ Approval and activation are distinct lifecycle transitions. Validation records e
 
 `BoundedTools` exposes a fixed set of local operations: inspect observations, query a time-bounded set of native events, compare cohort summaries, inspect state, validate a candidate lens, and record a hypothesis. Each operation consumes a persisted query allowance and appends a trace entry. The tools accept data and parameters rather than arbitrary user-supplied Python code.
 
-`LocalInvestigator` is a no-model fallback. It gathers the observation, nearby supporting events, a state snapshot, a fixed cohort comparison, and two rival hypotheses. Its confidence values are placeholders for structured review and are not calibrated probabilities. Its output explicitly remains deferred for human review.
+`LocalInvestigator` is a no-model fallback. It gathers the observation, nearby supporting events, a state snapshot, and two rival hypotheses. A caller may inject a profile-specific feature selector to add the fixed cohort comparison. With no selector, the core does not guess which feature is meaningful for the domain. Its confidence values are placeholders for structured review and are not calibrated probabilities. Its output explicitly remains deferred for human review.
 
 An `ActionEvent` is a request record. A separate runtime must resolve its function through an allowlist, check permission and policy, enforce idempotency, and write an `ActionResultEvent`. Keep external side effects behind that runtime boundary; do not make a lens or investigator call an external system directly.
 
@@ -192,11 +210,11 @@ The manual A–E benchmark functions record externally run variants. `protocol_m
 
 ### Add a source adapter
 
-Add a focused reader in `core/ingestion.py` or a new adapter module. Yield validated `Event` instances, normalize event times to aware UTC timestamps, preserve source identifiers, and record enough provenance to find the original row. Avoid putting evaluation labels in event attributes.
+Add a focused reader beside the dataset or application profile that needs it. Yield validated `Event` instances, normalize event times to aware UTC timestamps, preserve source identifiers, and record enough provenance to find the original row. The generic core only receives normalized events. Avoid putting evaluation labels in event attributes.
 
 ### Add a feature
 
-Add a numeric value to `FEATURE_NAMES` and populate it in `build_entity_windows`. Document its unit, missing-value behavior, temporal boundary, and intended domain. Keep the feature schema in each artifact and update any reader that assumes the old shape.
+Add features in the relevant domain profile, not to `core/features.py`. Document each unit, missing-value behavior, temporal boundary, and intended domain. Pass the feature-name order into `fit_lenses` and keep it with every artifact.
 
 ### Add a lens
 
@@ -206,23 +224,32 @@ For a statistical lens, define how it fits only on training rows, how its cutoff
 
 Represent the route as a `PolicyDecision` with a policy ID, version, and explanation. Enforce run budgets in `StateStore`. For external actions, route through the runtime's registered function boundary and retain the request, idempotency key, permission, attempt, and outcome as events.
 
-## Running the core examples
+## Compatibility imports
+
+`core.features` still lazily exposes the old transaction feature names. `core.synthetic`, `core.evaluation`, and `core.ingestion` are small compatibility bridges, and `core.lenses.DEFAULT_SQL` exposes the former sample query. The root `reflex.ingestion`, `reflex.news_demo`, and `reflex.benchmark` imports also forward to their experiment modules. New code should use the explicit modules under `reflex.experiments`. These bridges preserve existing local imports while keeping core implementations independent of experiment profiles.
+
+## Running core operations and experiment profiles
 
 From the repository root:
 
 ```bash
-# Generate events and keep labels in a sibling evaluator directory.
-uv run reflex generate --out .reflex-demo --seed 11
+# Generate transaction-shaped experiment data with labels stored separately.
+uv run reflex experiments discovery generate --out .reflex-demo --seed 11
 
 # Run discovery without opening the evaluator directory.
-uv run reflex discover --data-dir .reflex-demo
+uv run reflex experiments discovery run --data-dir .reflex-demo
 
 # Run the synthetic end-to-end example with post-run evaluation.
-uv run reflex demo --out .reflex-demo --seed 11
+uv run reflex experiments discovery demo --out .reflex-demo --seed 11
 
-# Ingest an already-downloaded source file and replay the default SQL lens.
-uv run reflex ingest-bpi "BPI Challenge 2017.csv" --db events.duckdb
-uv run reflex replay --db events.duckdb --state state.sqlite
+# Dataset-specific ingestion uses the experiment adapter.
+uv run reflex experiments ingest-bpi "BPI Challenge 2017.csv" --db events.duckdb
+
+# Core replay requires a caller-supplied SQL Lens.
+uv run reflex replay --db events.duckdb --state state.sqlite --sql-file lens.sql
+
+# Or replay the transaction example profile.
+uv run reflex experiments transaction-replay --db events.duckdb --state state.sqlite
 ```
 
 Generated local stores and artifacts are intended for inspection and experiments. The current code is a research prototype. It lacks production controls such as authenticated multi-user access, a hardened SQL isolation boundary, schema evolution policy, monitoring, backups, and independent real-world validation.
@@ -236,13 +263,16 @@ Generated local stores and artifacts are intended for inspection and experiments
 | `src/reflex/core/models/features.py` | Typed feature row contract |
 | `src/reflex/core/models/lenses.py` | Lens definitions, findings, and candidate lifecycle |
 | `src/reflex/core/models/policy.py` | Policy decisions and evidence-linked hypotheses |
-| `src/reflex/core/ingestion.py` | BPI and Loghub local-file adapters |
+| `src/reflex/core/ingestion.py` | Compatibility imports only; dataset readers live in experiments |
 | `src/reflex/core/storage.py` | DuckDB event ledger and SQLite state/audit/budget store |
-| `src/reflex/core/features.py` | Event-derived values and half-open entity windows |
-| `src/reflex/core/discovery.py` | Training, calibration, artifact persistence, scoring, clustering |
+| `src/reflex/core/features.py` | Generic feature row to matrix conversion |
+| `src/reflex/core/discovery.py` | Schema-driven training, calibration, artifact persistence, scoring, clustering |
 | `src/reflex/core/lenses.py` | Deterministic SQL lens replay |
 | `src/reflex/core/policy.py` | Decision routing and fixed bounded investigation operations |
-| `src/reflex/core/evaluation.py` | Synthetic-label scoring and manual protocol records |
-| `src/reflex/core/synthetic.py` | Seeded data generation and separate evaluator labels |
-| `src/reflex/core/cli.py` | Local CLI orchestration |
+| `src/reflex/experiments/transaction_features.py` | Transaction-only window feature profile |
+| `src/reflex/experiments/log_adapters.py` | BPI and Loghub dataset file readers |
+| `src/reflex/experiments/synthetic_data.py` | Seeded synthetic stream and hidden labels |
+| `src/reflex/experiments/evaluation.py` | Synthetic-label scoring and manual benchmark records |
+| `src/reflex/experiments/local_discovery.py` | Example workflow composing transaction profile with core APIs |
+| `src/reflex/core/cli.py` | Reusable event, SQL Lens, and state commands |
 | `src/reflex/runtime.py` | Reaction matching and registered action execution boundary |

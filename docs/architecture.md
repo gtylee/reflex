@@ -32,6 +32,14 @@ Every event keeps its identity and event time. Derived observations and action r
 
 The event ledger uses DuckDB. Durable state and candidate-lens transitions use SQLite. Statistical model artifacts store their feature schema, training boundary, calibration data, seed, and content hash.
 
+## Reusable core and experiment profiles
+
+The reusable core owns event and observation records, storage, SQL Lens execution, generic feature-matrix conversion, schema-driven model fitting and scoring, policy, and bounded investigation tools. It accepts normalized `Event` and `EventWindowFeatures` values without assuming transaction attributes or access to evaluator labels.
+
+The experiment package owns synthetic generators, benchmark labels, dataset adapters, transaction-specific feature engineering, example SQL profiles, metrics, and report commands. These modules compose the core for a particular dataset or study. They can change without making those dataset assumptions part of the reusable API.
+
+Use `reflex replay --sql-file lens.sql` for a caller-supplied core Lens. Use commands under `reflex experiments` for prepared profiles, such as `reflex experiments transaction-replay`, `reflex experiments discovery demo`, and `reflex experiments demo-news`. Older top-level demo and benchmark routes remain available for compatibility.
+
 ## Time and evidence boundaries
 
 Training, calibration, and evaluation use chronological splits. Training data fits models. Calibration data chooses thresholds. Later events measure performance. Hidden synthetic labels stay in a separate evaluator object and do not enter the adapter input.
@@ -52,9 +60,15 @@ The held-out experiment scores exact event IDs. Evidence checks confirm that a r
 | `src/reflex/experiments/models/inputs.py` | Experiment settings, visible inputs, and hidden truth labels |
 | `src/reflex/experiments/models/results.py` | Adapter outputs, per-variant runs, and experiment reports |
 | `src/reflex/core/storage.py` | Event history and versioned state/audit storage |
-| `src/reflex/core/features.py` | Chronological event and entity-window features |
-| `src/reflex/core/discovery.py` | Model fitting, calibration, artifact loading, and scores |
+| `src/reflex/core/features.py` | Generic feature-record to numeric matrix conversion |
+| `src/reflex/core/discovery.py` | Schema-driven fitting, calibration, artifact loading, and scoring |
 | `src/reflex/core/policy.py` | Permission checks, bounded tools, and investigation traces |
+| `src/reflex/experiments/transaction_features.py` | Transaction-specific event and window features |
+| `src/reflex/experiments/synthetic_data.py` | Experiment-only synthetic events and hidden labels |
+| `src/reflex/experiments/evaluation.py` | Experiment metrics and manual benchmark records |
+| `src/reflex/experiments/news_adapters.py` | Example news-source adapter to native events |
+| `src/reflex/experiments/news_demo.py` | Synthetic portfolio-news Reaction example |
+| `src/reflex/experiments/portfolio_benchmark.py` | Portfolio-news A/B/C protocol and report |
 | `src/reflex/runtime.py` | Reaction matching, function execution, and result recording |
 | `src/reflex/experiments/` | Synthetic cases, adapters, metrics, and dataset replayers |
 

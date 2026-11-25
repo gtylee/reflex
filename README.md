@@ -2,12 +2,20 @@
 
 REFLEX turns an event stream into evidence, a decision, and a bounded action. It keeps incoming events immutable, records derived findings separately, and requires explicit policy and approval before an action runs.
 
+## Reusable core and experiments
+
+`reflex.core` contains the reusable event records, stores, SQL Lens runner, schema-driven statistical fitting/scoring, policy, and bounded investigation tools. It accepts normalized `Event` and `EventWindowFeatures` records and does not assume a transaction schema or read evaluator labels.
+
+`reflex.experiments` contains dataset adapters, synthetic generators, transaction-specific features, example lenses, benchmark labels, evaluation, and report commands. Those profiles compose the core for a particular study. New application code should import reusable operations from `reflex.core` and import a profile only when it needs that dataset or experiment.
+
+The CLI follows the same boundary: use `reflex replay --sql-file lens.sql` for a caller-defined core Lens, and `reflex experiments ...` for prepared examples such as `reflex experiments transaction-replay` and `reflex experiments discovery demo`.
+
 ## Get started
 
 ```bash
 uv sync --python 3.13 --extra dev
-uv run reflex demo-news --out .reflex-news-demo
-uv run reflex demo --out .reflex-demo
+uv run reflex experiments demo-news --out .reflex-news-demo
+uv run reflex experiments discovery demo --out .reflex-demo
 ```
 
 The news demo uses synthetic data and a local simulated publisher. The discovery demo creates synthetic events, fits statistical lenses on earlier data, and scores against hidden labels only after predictions are complete. Neither demo connects to a live portfolio, messaging, or operations system.
@@ -41,15 +49,15 @@ The held-out command uses new synthetic generator seeds. It reports exact event 
 The A/B/C protocol keeps the input, objective, and resource limits fixed. The local command can run C. A and B need actual external runs; missing runs remain missing.
 
 ```bash
-uv run reflex benchmark init --out reflex-benchmark.json --seeds 11,23,37
-uv run reflex benchmark run-c --protocol reflex-benchmark.json --out .reflex-benchmark-c --seed 11
-uv run reflex benchmark report --protocol reflex-benchmark.json
+uv run reflex experiments portfolio-benchmark init --out reflex-benchmark.json --seeds 11,23,37
+uv run reflex experiments portfolio-benchmark run-c --protocol reflex-benchmark.json --out .reflex-benchmark-c --seed 11
+uv run reflex experiments portfolio-benchmark report --protocol reflex-benchmark.json
 ```
 
-For the separate A–E statistical-discovery protocol, use `reflex discovery-benchmark`. For example:
+For the separate A–E statistical-discovery protocol, use its experiment command:
 
 ```bash
-uv run reflex discovery-benchmark pilot --out reports/reflex-pilot --seeds 11,23,37
+uv run reflex experiments discovery benchmark pilot --out reports/reflex-pilot --seeds 11,23,37
 ```
 
 ## Code map
@@ -59,9 +67,15 @@ uv run reflex discovery-benchmark pilot --out reports/reflex-pilot --seeds 11,23
 | `src/reflex/core/models/` | Immutable event, Lens, policy, and feature types, grouped by domain |
 | `src/reflex/experiments/models/` | Experiment inputs, label-separated records, adapter outputs, and reports |
 | `src/reflex/core/storage.py` | Event ledger, durable state, and audit trail |
-| `src/reflex/core/features.py` | Time-aware event and entity-window features |
-| `src/reflex/core/discovery.py` | Statistical lenses, training, calibration, and scoring |
+| `src/reflex/core/features.py` | Generic feature-row to matrix conversion |
+| `src/reflex/core/discovery.py` | Schema-driven statistical fitting, calibration, and scoring |
 | `src/reflex/core/policy.py` | Policy decisions, bounded tools, and local investigation |
+| `src/reflex/experiments/transaction_features.py` | Transaction-specific event and window features |
+| `src/reflex/experiments/synthetic_data.py` | Synthetic stream generation and separate evaluator labels |
+| `src/reflex/experiments/evaluation.py` | Synthetic metrics and benchmark protocol records |
+| `src/reflex/experiments/news_adapters.py` | Example adapter for normalized news records |
+| `src/reflex/experiments/news_demo.py` | Synthetic portfolio-news Reaction example |
+| `src/reflex/experiments/portfolio_benchmark.py` | Portfolio-news A/B/C protocol |
 | `src/reflex/runtime.py` | Reaction execution and controlled action publishing |
 | `src/reflex/contracts/` | Reaction graph contracts and schema registry types |
 | `src/reflex/experiments/` | Seeded scenarios, adapters, metrics, and held-out evaluation |
@@ -71,6 +85,6 @@ Read the [REFLEX guide](docs/REFLEX-GUIDE.md), [core implementation guide](docs/
 
 ## Data and limits
 
-Adapters are available for BPI Challenge 2017, Loghub, GDELT, FNSPID-style financial news, Reuters-21578, and normalized market prices. Public data downloads are opt-in. News-to-market relationships are predictive diagnostics; they do not establish causation.
+Dataset adapters are available for BPI Challenge 2017, Loghub, GDELT, FNSPID-style financial news, Reuters-21578, and normalized market prices. They live in the experiment layer. Public data downloads are opt-in. News-to-market relationships are predictive diagnostics; they do not establish causation.
 
 REFLEX is a research prototype. Synthetic results are checks of the implementation and its known test cases. Use human review and independent labels before relying on discoveries or actions in operational settings.

@@ -16,7 +16,7 @@ The project supports Python 3.12 through 3.14. The examples below use `uv` and P
 ```bash
 uv sync --python 3.13 --extra dev
 uv run reflex --help
-uv run reflex demo-news --out .reflex-news-demo
+uv run reflex experiments demo-news --out .reflex-news-demo
 ```
 
 The news demo uses synthetic stories, a synthetic portfolio, and a local simulated publisher. It does not connect to a live portfolio or messaging service. Its output includes a JSON run report, an event database, and a state database in `.reflex-news-demo/`.
@@ -24,10 +24,16 @@ The news demo uses synthetic stories, a synthetic portfolio, and a local simulat
 For a complete statistical discovery example, run:
 
 ```bash
-uv run reflex demo --out .reflex-demo --seed 11
+uv run reflex experiments discovery demo --out .reflex-demo --seed 11
 ```
 
 This generates synthetic events, fits or loads statistical Lenses, scores later windows, saves observations, and writes `latest-run.json`. By default, its evaluator labels are written to the sibling folder `.reflex-demo-evaluator/`. Keep that evaluator folder out of an agent's input workspace when you are measuring label-blind performance.
+
+## Reusable core and experiment profiles
+
+The reusable core works with normalized `Event` records, caller-defined feature rows, stores, SQL lenses, model fitting, and policy. It does not assume a transaction schema. The `experiments` package holds dataset readers, synthetic labels, transaction-specific features, sample SQL profiles, and benchmark commands.
+
+Use `reflex replay --sql-file lens.sql` to run a SQL lens you define. Use `reflex experiments transaction-replay` for the prepared transaction example. Likewise, dataset readers are under `reflex experiments ingest-bpi` and `reflex experiments ingest-loghub`. Compatibility aliases remain, but new code and examples should use the namespaced commands.
 
 ## The mental model
 
@@ -59,7 +65,7 @@ flowchart LR
 
 ## A complete example: synthetic portfolio news
 
-`reflex demo-news` is the best place to see how a Reaction connects the pieces. The demo creates a fixed portfolio and several synthetic story events. One example input has this shape:
+`reflex experiments demo-news` is the best place to see how a Reaction connects the pieces. The demo creates a fixed portfolio and several synthetic story events. One example input has this shape:
 
 ```python
 from datetime import datetime, timezone
@@ -97,7 +103,7 @@ The Reaction then follows this path:
 
 The same demo also shows duplicate suppression, a new story revision, a manager response, and a possible supplier relationship recorded as an **unverified hypothesis**. Replaying the saved inputs checks the same workflow path while avoiding another external side effect. In this demo, the publisher is an in-memory function, so there is no real external message.
 
-The graph and its registered functions are assembled in `src/reflex/news_demo.py`. The runtime that validates and runs the graph is in `src/reflex/runtime.py`.
+The graph and its registered functions are assembled in `src/reflex/experiments/news_demo.py`. The runtime that validates and runs the graph is in `src/reflex/runtime.py`.
 
 ## Events, observations, and evidence
 
@@ -118,14 +124,14 @@ For example, an observation about `acct-0012` might refer to events `evt-101` an
 
 The project has deterministic and statistical discovery paths:
 
-- The **SQL Lens** runs one bounded `SELECT` or `WITH` query against the registered `events` relation. The default SQL Lens flags native events with an `amount` of at least 4,000. It cannot read arbitrary files or attach external databases.
+- The **SQL Lens** runs one bounded `SELECT` or `WITH` query through the local event-store adapter. A high-amount example query is an experiment profile, not a core default. The SQL checks are local guardrails, not a hardened multi-tenant sandbox.
 - The **statistical discovery** path builds entity-window features, fits versioned model artifacts, calibrates thresholds on a separate time interval, then scores later events. Artifacts record details such as the seed, feature names, training cutoff, and signatures of the data used.
 
-The default synthetic discovery dataset has a chronological training, calibration, and later evaluation period. The model should not learn from the later evaluation interval. The `demo` command can pass the separate evaluator labels to score results after observations are produced. To keep a discovery run label-blind, generate the data and then run `discover` without `--evaluator-dir`:
+The synthetic transaction profile has a chronological training, calibration, and later evaluation period. The model should not learn from the later evaluation interval. The `demo` command can pass the separate evaluator labels to score results after observations are produced. To keep a discovery run label-blind, generate the data and then run `run` without `--evaluator-dir`:
 
 ```bash
-uv run reflex generate --out .reflex-data --seed 11 --entities 80 --days 30
-uv run reflex discover --data-dir .reflex-data
+uv run reflex experiments discovery generate --out .reflex-data --seed 11 --entities 80 --days 30
+uv run reflex experiments discovery run --data-dir .reflex-data
 ```
 
 The generated input directory contains the event database and dataset manifest. The evaluator labels live in the sibling `.reflex-data-evaluator/` directory by default. Do not give that directory to an adapter that is meant to operate without labels.
@@ -173,18 +179,18 @@ All workflows use the single `reflex` command. Start with `uv run reflex --help`
 
 | Command | What it does | Example |
 |---|---|---|
-| `demo-news` | Runs the synthetic portfolio-news Reaction, including duplicates, revision, retry, and replay cases. | `uv run reflex demo-news --out .reflex-news-demo` |
-| `demo` | Generates synthetic events, runs statistical discovery, and optionally scores with evaluator labels. | `uv run reflex demo --out .reflex-demo --seed 11` |
-| `generate` | Creates a synthetic discovery dataset. | `uv run reflex generate --out .reflex-data --seed 11` |
-| `discover` | Fits or loads Lenses and scores an existing generated dataset. Labels remain unused unless `--evaluator-dir` is passed. | `uv run reflex discover --data-dir .reflex-data` |
-| `ingest-bpi` | Reads a locally acquired BPI 2017 CSV into an event database. | `uv run reflex ingest-bpi ./data/bpi.csv --db events.duckdb` |
-| `ingest-loghub` | Reads a local Loghub CSV, JSONL, or HDFS log. | `uv run reflex ingest-loghub ./data/logs.csv --db events.duckdb` |
-| `replay` | Applies the deterministic high-amount SQL Lens in event-time batches. | `uv run reflex replay --db events.duckdb --state state.sqlite --batch-days 5` |
+| `experiments discovery demo` | Generates transaction-shaped synthetic events, runs discovery, and optionally scores evaluator labels after scoring. | `uv run reflex experiments discovery demo --out .reflex-demo --seed 11` |
+| `experiments discovery generate` | Creates the transaction experiment input and separate evaluator data. | `uv run reflex experiments discovery generate --out .reflex-data --seed 11` |
+| `experiments discovery run` | Fits or loads the transaction profile and scores an existing generated dataset. | `uv run reflex experiments discovery run --data-dir .reflex-data` |
+| `experiments ingest-bpi` | Reads a locally acquired BPI event log into the generic event store. | `uv run reflex experiments ingest-bpi ./data/bpi.csv --db events.duckdb` |
+| `experiments ingest-loghub` | Reads a local Loghub CSV, JSONL, or HDFS log. | `uv run reflex experiments ingest-loghub ./data/logs.csv --db events.duckdb` |
+| `replay` | Runs a caller-supplied SQL Lens in event-time batches. | `uv run reflex replay --db events.duckdb --sql-file lens.sql` |
+| `experiments transaction-replay` | Runs the prepared high-amount transaction example through core replay. | `uv run reflex experiments transaction-replay --db events.duckdb` |
 | `state` | Reads the current state snapshot or its audit history. | `uv run reflex state --db state.sqlite --namespace discovery --audit` |
 | `export-parquet` | Writes a time-ordered Parquet snapshot of the event table. | `uv run reflex export-parquet --db events.duckdb --out events.parquet` |
 | `experiments` | Runs controlled synthetic, public-data replay, operational, news, and performance workflows. | `uv run reflex experiments list` |
-| `benchmark` | Prepares and summarizes the separate A/B/C portfolio-news protocol. | `uv run reflex benchmark init --out reflex-benchmark.json` |
-| `discovery-benchmark` | Manages the separate manual A–E statistical-discovery protocol and its synthetic pilot. | `uv run reflex discovery-benchmark pilot --out reports/reflex-pilot --seeds 11,23,37` |
+| `experiments portfolio-benchmark` | Prepares and summarizes the separate A/B/C portfolio-news protocol. | `uv run reflex experiments portfolio-benchmark init --out reflex-benchmark.json` |
+| `experiments discovery benchmark` | Manages the manual A–E protocol and its synthetic pilot. | `uv run reflex experiments discovery benchmark pilot --out reports/reflex-pilot --seeds 11,23,37` |
 
 ### Managing a SQL Lens candidate
 
@@ -244,8 +250,8 @@ The GDELT command accesses a public archive when you run it. Its report measures
 
 ### Do not confuse the comparison protocols
 
-- `reflex benchmark` is the portfolio-news A/B/C protocol. The input bundle, objective, and budgets are shared. A and B require actual external runs; the report does not fill them in with mocks.
-- `reflex discovery-benchmark` is the separate A–E statistical-discovery protocol. Its `pilot` command repeatedly evaluates REFLEX's synthetic statistical lenses against generator labels. It does **not** run five actual agent variants or establish that persistent state improved discovery.
+- `reflex experiments portfolio-benchmark` is the portfolio-news A/B/C protocol. The input bundle, objective, and budgets are shared. A and B require actual external runs; the report does not fill them in with mocks. The old `reflex benchmark` route remains an alias.
+- `reflex experiments discovery benchmark` is the separate A–E statistical-discovery protocol. Its `pilot` command repeatedly evaluates REFLEX's synthetic statistical lenses against generator labels. It does **not** run five actual agent variants or establish that persistent state improved discovery.
 - `reflex experiments heldout` evaluates deterministic C across new seeds. It does **not** make a comparative claim.
 
 ## Extending REFLEX
@@ -257,7 +263,7 @@ The GDELT command accesses a public archive when you run it. Its report measures
 3. Keep target labels or evaluator-only facts out of the input event payload.
 4. Save the records with `EventStore`, then use a Lens or Reaction that declares which event types and schemas it accepts.
 
-Existing mappings for BPI 2017 and Loghub are in `src/reflex/core/ingestion.py`. Other dataset adapters are under `src/reflex/experiments/datasets.py`.
+The BPI 2017 and Loghub file mappings are in `src/reflex/experiments/log_adapters.py`. These experiment adapters convert files into generic core `Event` records. Other dataset adapters are under `src/reflex/experiments/datasets.py`.
 
 ### Add a Lens or a Reaction function
 
@@ -268,7 +274,7 @@ Existing mappings for BPI 2017 and Loghub are in `src/reflex/core/ingestion.py`.
 5. If the function can cause an external side effect, register it separately with `ActionExecutor` and specify its permission and argument/result schemas.
 6. Run against synthetic or controlled data first. Inspect the Reaction run, emitted event IDs, action outcomes, and state audit before connecting any live integration.
 
-The sample graph is in `src/reflex/news_demo.py`; graph contracts are in `src/reflex/contracts/reactions.py`; the runtime is in `src/reflex/runtime.py`. Statistical discovery components live in `src/reflex/core/discovery.py`, while event-window feature construction lives in `src/reflex/core/features.py`.
+The sample graph is in `src/reflex/experiments/news_demo.py`; graph contracts are in `src/reflex/contracts/reactions.py`; the runtime is in `src/reflex/runtime.py`. Statistical discovery components live in `src/reflex/core/discovery.py`. Transaction-window feature construction is an experiment profile in `src/reflex/experiments/transaction_features.py`.
 
 ### Add a new experiment scenario
 
@@ -313,9 +319,14 @@ Synthetic mechanisms are deliberately controlled and often easier than real-worl
 | `src/reflex/contracts/reactions.py` | Function references and versioned Reaction graphs. |
 | `src/reflex/contracts/schemas.py` | Exploratory observation contract and schema registry. |
 | `src/reflex/core/storage.py` | DuckDB event ledger and SQLite state/audit storage. |
-| `src/reflex/core/features.py` | Event-level and entity-window feature construction. |
-| `src/reflex/core/discovery.py` | Statistical Lens fitting, calibration, artifacts, and scoring. |
+| `src/reflex/core/features.py` | Generic conversion from feature rows to numeric matrices. |
+| `src/reflex/core/discovery.py` | Schema-driven statistical Lens fitting, calibration, artifacts, and scoring. |
 | `src/reflex/core/policy.py` | Discovery policy, bounded tools, and deterministic investigation. |
+| `src/reflex/experiments/transaction_features.py` | Transaction-specific event/window features. |
+| `src/reflex/experiments/synthetic_data.py` | Synthetic stream generation and evaluator-only labels. |
+| `src/reflex/experiments/news_adapters.py` | Example adapter from normalized news records to native events. |
+| `src/reflex/experiments/news_demo.py` | Synthetic portfolio-news Reaction example. |
+| `src/reflex/experiments/portfolio_benchmark.py` | Portfolio-news benchmark protocol and report. |
 | `src/reflex/runtime.py` | Reaction execution, permissions, replay, and action outcomes. |
 | `src/reflex/experiments/` | Synthetic scenarios, adapters, metrics, held-out runs, and public-data replay. |
 | `src/reflex/experiments/models/` | Experiment input, label, adapter result, and report types. |

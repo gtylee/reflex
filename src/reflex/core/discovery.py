@@ -22,7 +22,7 @@ from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
 from torch import nn
 
-from .features import FEATURE_NAMES, matrix
+from .features import matrix
 from .models.events import stable_id
 from .models.features import EventWindowFeatures
 from .models.lenses import LensKind, LensVersion, Observation
@@ -62,6 +62,7 @@ class FittedLenses:
     model_version: str
     training_cutoff: datetime
     config: dict[str, Any]
+    feature_names: tuple[str, ...]
 
 
 def _write_json(path: Path, payload: Any) -> None:
@@ -80,7 +81,7 @@ def rows_signature(rows: list[EventWindowFeatures]) -> str:
 def fit_lenses(
     training_rows: list[EventWindowFeatures], calibration_rows: list[EventWindowFeatures],
     artifact_dir: str | Path, *, seed: int = 11, epochs: int = 35, contamination: float = 0.01,
-    training_cutoff: datetime | None = None,
+    training_cutoff: datetime | None = None, feature_names: tuple[str, ...] | None = None,
 ) -> FittedLenses:
     """Fit the autoencoder and Isolation Forest on training rows only.
 
@@ -98,6 +99,7 @@ def fit_lenses(
         epochs: Number of full-batch autoencoder optimization steps.
         contamination: Upper-tail calibration quantile, between zero and one-half.
         training_cutoff: Explicit UTC boundary to record in model provenance.
+        feature_names: Feature schema and order. Omit to infer it from the first training row.
 
     Returns:
         A ``FittedLenses`` bundle ready to score later feature windows.
@@ -109,10 +111,13 @@ def fit_lenses(
         raise ValueError("at least 12 training windows and one calibration window are required")
     if not 0 < contamination < 0.5:
         raise ValueError("contamination must be between 0 and 0.5")
+    schema = tuple(feature_names or training_rows[0].feature_values)
+    if not schema:
+        raise ValueError("feature schema must contain at least one name")
     target = Path(artifact_dir)
     target.mkdir(parents=True, exist_ok=True)
-    x_train = matrix(training_rows)
-    x_calibration = matrix(calibration_rows)
+    x_train = matrix(training_rows, schema)
+    x_calibration = matrix(calibration_rows, schema)
     # Fit every preprocessing statistic on training only. Fitting this scaler
     # on calibration or holdout rows would leak their distribution into scores.
     scaler = StandardScaler().fit(x_train)
@@ -146,17 +151,17 @@ def fit_lenses(
     }
     cutoff = training_cutoff or max(row.window_end for row in training_rows)
     config = {"seed": seed, "epochs": epochs, "contamination": contamination, "latent_dim": 4,
-              "feature_names": list(FEATURE_NAMES), "training_rows": len(training_rows),
+              "feature_names": list(schema), "training_rows": len(training_rows),
               "calibration_rows": len(calibration_rows), "training_cutoff": cutoff.isoformat(),
               "calibration_thresholds": thresholds, "torch_version": str(torch.__version__),
               "training_signature": rows_signature(training_rows),
               "calibration_signature": rows_signature(calibration_rows)}
     torch.save({"state_dict": model.state_dict(), "input_dim": z_train.shape[1], "config": config}, target / "autoencoder.pt")
     joblib.dump({"forest": forest, "scaler_mean": scaler.mean_, "scaler_scale": scaler.scale_}, target / "isolation_forest.joblib")
-    np.savez(target / "preprocessing.npz", mean=scaler.mean_, scale=scaler.scale_, feature_names=np.asarray(FEATURE_NAMES))
+    np.savez(target / "preprocessing.npz", mean=scaler.mean_, scale=scaler.scale_, feature_names=np.asarray(schema))
     digest = hashlib.sha256((target / "autoencoder.pt").read_bytes() + (target / "isolation_forest.joblib").read_bytes()).hexdigest()[:16]
     _write_json(target / "manifest.json", {**config, "model_version": digest})
-    return FittedLenses(target, scaler, model, forest, thresholds, digest, cutoff, config)
+    return FittedLenses(target, scaler, model, forest, thresholds, digest, cutoff, config, schema)
 
 
 def load_lenses(artifact_dir: str | Path) -> FittedLenses:
@@ -184,7 +189,9 @@ def load_lenses(artifact_dir: str | Path) -> FittedLenses:
     model.eval()
     forest_payload = joblib.load(target / "isolation_forest.joblib")
     cutoff = datetime.fromisoformat(manifest["training_cutoff"])
-    return FittedLenses(target, scaler, model, forest_payload["forest"], manifest["calibration_thresholds"], manifest["model_version"], cutoff, manifest)
+    feature_names = tuple(str(name) for name in preprocessing["feature_names"])
+    return FittedLenses(target, scaler, model, forest_payload["forest"], manifest["calibration_thresholds"],
+                        manifest["model_version"], cutoff, manifest, feature_names)
 
 
 def score_rows(rows: list[EventWindowFeatures], lenses: FittedLenses, *,
@@ -198,7 +205,7 @@ def score_rows(rows: list[EventWindowFeatures], lenses: FittedLenses, *,
     """
     if not rows:
         return []
-    z = lenses.scaler.transform(matrix(rows)).astype(np.float32)
+    z = lenses.scaler.transform(matrix(rows, lenses.feature_names)).astype(np.float32)
     with torch.no_grad():
         tensor = torch.from_numpy(z)
         residuals = (lenses.autoencoder(tensor) - tensor).numpy()
@@ -206,10 +213,10 @@ def score_rows(rows: list[EventWindowFeatures], lenses: FittedLenses, *,
         latent = lenses.autoencoder.encoder(tensor).numpy()
     if_scores = -lenses.isolation_forest.decision_function(z)
     ae_lens = LensVersion(lens_id="stat.autoencoder", version=lenses.model_version, kind=LensKind.AUTOENCODER,
-                          description="Per-window reconstruction residual score", feature_schema=tuple(FEATURE_NAMES),
+                          description="Per-window reconstruction residual score", feature_schema=lenses.feature_names,
                           training_cutoff=lenses.training_cutoff, artifact_path=str(lenses.artifact_dir), config=lenses.config)
     if_lens = LensVersion(lens_id="stat.isolation_forest", version=lenses.model_version, kind=LensKind.ISOLATION_FOREST,
-                          description="Per-window Isolation Forest anomaly score", feature_schema=tuple(FEATURE_NAMES),
+                          description="Per-window Isolation Forest anomaly score", feature_schema=lenses.feature_names,
                           training_cutoff=lenses.training_cutoff, artifact_path=str(lenses.artifact_dir), config=lenses.config)
     observations = []
     for index, row in enumerate(rows):
@@ -222,7 +229,7 @@ def score_rows(rows: list[EventWindowFeatures], lenses: FittedLenses, *,
                 observation_type=kind, lens_id=lens.lens_id, lens_version=lens.version,
                 subject=row.subject, window_start=row.window_start, window_end=row.window_end,
                 value={"score": score, "threshold": threshold, "is_anomaly": score >= threshold,
-                       "feature_residuals": {name: float(residuals[index, offset]) for offset, name in enumerate(FEATURE_NAMES)} if lens.kind == LensKind.AUTOENCODER else None,
+                       "feature_residuals": {name: float(residuals[index, offset]) for offset, name in enumerate(lenses.feature_names)} if lens.kind == LensKind.AUTOENCODER else None,
                        "features": row.feature_values},
                 supporting_event_ids=row.supporting_event_ids,
                 state_snapshot=(state_snapshot(row) if callable(state_snapshot) else state_snapshot) or {}, model_version=lenses.model_version,
@@ -245,11 +252,12 @@ def cluster_observations(observations: list[Observation], *, min_samples: int = 
     candidates = [obs for obs in observations if isinstance(obs.value, dict) and obs.value.get("is_anomaly")]
     if not candidates:
         return []
+    feature_names = tuple((candidates[0].value.get("features") or {}).keys())
     rows = []
     for obs in candidates:
         features = obs.value.get("features") or {}
         # Detection scores and window features keep semantically related records close.
-        rows.append([float(obs.value.get("score", 0)), *[float(features.get(name, 0)) for name in FEATURE_NAMES]])
+        rows.append([float(obs.value.get("score", 0)), *[float(features.get(name, 0)) for name in feature_names]])
     vectors = Scaler().fit_transform(np.asarray(rows))
     labels = DBSCAN(eps=2.2, min_samples=min_samples).fit_predict(vectors)
     result = []

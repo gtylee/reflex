@@ -4,15 +4,15 @@ The A–E discovery protocol measures pattern discovery and validation. The A/B/
 
 ## REFLEX portfolio-news A/B/C protocol
 
-The variants are A (direct LLM processing), B (tool-enabled agent processing), and C (`portfolio_news_intelligence@1.0`). `reflex benchmark init` writes the fixed synthetic input hash, portfolio state, objective, information scope, inference and compute ceilings, and required metrics. Each run must use that same hash and exact objective. The run recorder rejects mismatches and over-budget runs.
+The variants are A (direct LLM processing), B (tool-enabled agent processing), and C (`portfolio_news_intelligence@1.0`). `reflex experiments portfolio-benchmark init` writes the fixed synthetic input hash, portfolio state, objective, information scope, inference and compute ceilings, and required metrics. Each run must use that same hash and exact objective. The run recorder rejects mismatches and over-budget runs. The older top-level `reflex benchmark` route remains available as a compatibility alias.
 
 ```bash
-uv run reflex benchmark init --out reflex-benchmark.json --seeds 11,23,37
-uv run reflex benchmark run-c --protocol reflex-benchmark.json --out .reflex-benchmark-c --seed 11
-uv run reflex benchmark report --protocol reflex-benchmark.json
+uv run reflex experiments portfolio-benchmark init --out reflex-benchmark.json --seeds 11,23,37
+uv run reflex experiments portfolio-benchmark run-c --protocol reflex-benchmark.json --out .reflex-benchmark-c --seed 11
+uv run reflex experiments portfolio-benchmark report --protocol reflex-benchmark.json
 ```
 
-Record actual A or B runs with `uv run reflex benchmark record --protocol reflex-benchmark.json --run run.json`. Required metrics are alert precision and recall, duplicate suppression, decision consistency, latency, inference-token count, compute time, evidence completeness, replay reproducibility, and action reliability. The deterministic C run has zero inference-token use; its local compute time is recorded. The recorder requires reported token and compute metrics to match the run's resource usage. The benchmark action sink is local and synthetic for all variants. External delivery is disabled for a fair comparison.
+Record actual A or B runs with `uv run reflex experiments portfolio-benchmark record --protocol reflex-benchmark.json --run run.json`. Required metrics are alert precision and recall, duplicate suppression, decision consistency, latency, inference-token count, compute time, evidence completeness, replay reproducibility, and action reliability. The deterministic C run has zero inference-token use; its local compute time is recorded. The recorder requires reported token and compute metrics to match the run's resource usage. The benchmark action sink is local and synthetic for all variants. External delivery is disabled for a fair comparison.
 
 The harness can execute C and validate records, but it does not provide an LLM or tool-agent baseline. An A/B/C report is not comparison-ready until every variant has an actual run for every declared seed. Partial seed coverage is labeled as partial. No missing result is filled, inferred, or presented as a model result.
 
@@ -42,7 +42,7 @@ The benchmark asks whether persistent, governed state improves discovery quality
 ## Run manifest and recording
 
 ```bash
-uv run reflex discovery-benchmark init --out benchmark-protocol.json --seeds 11,23,37 --inference-budget 20000 --compute-budget-seconds 900
+uv run reflex experiments discovery benchmark init --out benchmark-protocol.json --seeds 11,23,37 --inference-budget 20000 --compute-budget-seconds 900
 ```
 
 For each variant, seed, and batch, write the actual run to a JSON file with these fields:
@@ -67,8 +67,8 @@ For each variant, seed, and batch, write the actual run to a JSON file with thes
 Record and report actual observations:
 
 ```bash
-uv run reflex discovery-benchmark record --protocol benchmark-protocol.json --record run.json
-uv run reflex discovery-benchmark report --protocol benchmark-protocol.json
+uv run reflex experiments discovery benchmark record --protocol benchmark-protocol.json --record run.json
+uv run reflex experiments discovery benchmark report --protocol benchmark-protocol.json
 ```
 
 The report marks the protocol complete only after it has all six five-day batches plus the one-shot run for each requested seed and each of the five variants.
