@@ -13,6 +13,8 @@ from .base import FrozenModel
 
 
 class PolicyAction(StrEnum):
+    """Allowed routes for a finding; values describe workflow intent."""
+
     RECORD = "record"
     INVESTIGATE = "investigate"
     DEFER = "defer"
@@ -22,7 +24,12 @@ class PolicyAction(StrEnum):
 
 
 class PolicyDecision(FrozenModel):
-    """A durable record of why a finding was or was not acted on."""
+    """Versioned record explaining the next workflow route for a finding.
+
+    The decision captures policy output, not evidence validity. In particular,
+    ``INVESTIGATE`` means gather more information, not execute an external
+    action.
+    """
 
     decision_id: str = Field(default_factory=lambda: str(uuid4()))
     observation_id: str
@@ -34,7 +41,12 @@ class PolicyDecision(FrozenModel):
 
 
 class Hypothesis(FrozenModel):
-    """A tentative explanation with explicit supporting and contradicting evidence."""
+    """A tentative explanation with separately linked evidence on both sides.
+
+    Confidence is an application-supplied value and is not calibrated by this
+    record type. Use ``status`` and the evidence tuples to keep open ideas
+    distinct from explanations later supported or contradicted by review.
+    """
 
     hypothesis_id: str = Field(default_factory=lambda: str(uuid4()))
     statement: str

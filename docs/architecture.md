@@ -58,7 +58,7 @@ The held-out experiment scores exact event IDs. Evidence checks confirm that a r
 | `src/reflex/runtime.py` | Reaction matching, function execution, and result recording |
 | `src/reflex/experiments/` | Synthetic cases, adapters, metrics, and dataset replayers |
 
-The [plain-language guide](REFLEX-GUIDE.md) explains how these parts fit together. The [experiment notes](REFLEX-EXPERIMENTS.md) list measured results and limits.
+The [plain-language guide](REFLEX-GUIDE.md) explains the concepts. The [core guide](core-guide.md) walks through the records, data boundaries, storage, feature windows, model fitting, policy, and extension points. The [experiment notes](REFLEX-EXPERIMENTS.md) list measured results and limits.
 
 ## Limits
 

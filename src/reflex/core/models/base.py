@@ -8,7 +8,13 @@ from pydantic import BaseModel, ConfigDict, model_validator
 
 
 class FrozenDict(dict):
-    """A JSON-compatible dictionary that rejects in-place updates."""
+    """A JSON-serializable mapping used for immutable record contents.
+
+    REFLEX records often need nested dictionaries because event attributes and
+    observation values are intentionally flexible. Keeping the mapping type
+    familiar makes those records easy to serialize while rejecting the usual
+    in-place dictionary mutators.
+    """
 
     def __init__(self, values: dict[str, Any] | None = None):
         dict.__init__(self, values or {})
@@ -33,7 +39,14 @@ def _deep_freeze(value: Any) -> Any:
 
 
 class FrozenModel(BaseModel):
-    """Base for validated REFLEX records with immutable fields and contents."""
+    """Base class for validated records with immutable fields and containers.
+
+    Pydantic validates the declared shape and blocks field reassignment. The
+    after-validator also walks nested dictionaries, lists, and sets so callers
+    cannot mutate a record indirectly after it has been written or referenced
+    as evidence. Tuples and scalar values already have immutable semantics and
+    are retained as-is.
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 

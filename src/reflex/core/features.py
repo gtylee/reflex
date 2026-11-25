@@ -1,4 +1,9 @@
-"""Leakage-aware event and non-overlapping entity-window feature construction."""
+"""Leakage-aware event and non-overlapping entity-window feature construction.
+
+Feature values are computed from source events within explicit event-time
+boundaries. The default schema is tuned to the included transaction examples,
+so a new domain should review units and missing-value meanings before reuse.
+"""
 
 from __future__ import annotations
 
@@ -13,6 +18,8 @@ from .models.events import Event
 from .models.features import EventWindowFeatures
 
 
+# Keep the model input order explicit. Artifact manifests record these names so
+# feature reordering is visible when a model is trained or loaded.
 FEATURE_NAMES = (
     "event_count", "mean_amount", "std_amount", "max_amount", "high_amount_share",
     "mean_interarrival_hours", "std_interarrival_hours", "event_type_entropy",
@@ -24,6 +31,12 @@ FEATURE_NAMES = (
 
 
 def event_level_features(events: Iterable[Event]) -> list[dict[str, float | str]]:
+    """Return simple source-event features in stable event-time order.
+
+    Interarrival time is measured separately for each event's first entity ID;
+    events without an entity use ``unassigned``. This helper is event-level,
+    while ``build_entity_windows`` creates the aggregated model rows.
+    """
     ordered = sorted(events, key=lambda item: (item.event_time, item.event_id))
     previous: dict[str, datetime] = {}
     rows = []
@@ -45,7 +58,18 @@ def event_level_features(events: Iterable[Event]) -> list[dict[str, float | str]
 def build_entity_windows(
     events: Iterable[Event], *, start: datetime, end: datetime, window_days: int = 5,
 ) -> list[EventWindowFeatures]:
-    """Aggregate events in [start,end); no value from later windows enters a row."""
+    """Aggregate events into adjacent half-open windows for each subject.
+
+    Only events in ``[start, end)`` are considered. Every event in a window is
+    assigned to each of its entity IDs, or to ``unassigned`` when it has none.
+    Empty entity windows are omitted. Event IDs are retained so each aggregate
+    can be traced to its source records.
+
+    Several domain fields have explicit defaults: missing numeric amounts and
+    latencies are treated as zero, and missing channel/region values use
+    ``unknown``. Callers should adapt these choices when zero does not mean
+    "not measured" for their source.
+    """
     if start.tzinfo is None or end.tzinfo is None or end <= start or window_days < 1:
         raise ValueError("start/end must be aware datetimes and window_days positive")
     ordered = sorted((event for event in events if start <= event.event_time < end), key=lambda e: (e.event_time, e.event_id))
@@ -61,6 +85,9 @@ def build_entity_windows(
         counts_by_region: Counter[str] = Counter()
         entity_region: dict[str, str] = {}
         for entity, entity_events in grouped.items():
+            # Peer volume is compared within the first event's region for this
+            # subject-window. The cohort/region mapping is descriptive input,
+            # not a causal adjustment.
             region = str(entity_events[0].attributes.get("region", "unknown"))
             entity_region[entity] = region
             counts_by_region[region] += len(entity_events)
@@ -115,5 +142,6 @@ def build_entity_windows(
 
 
 def matrix(rows: list[EventWindowFeatures], names: tuple[str, ...] = FEATURE_NAMES) -> np.ndarray:
+    """Convert feature records to a dense matrix in the declared schema order."""
     return np.asarray([[row.feature_values[name] for name in names] for row in rows], dtype=np.float64)
 

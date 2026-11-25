@@ -14,13 +14,21 @@ from .events import ObservationEvent
 
 
 class LensKind(StrEnum):
+    """Implemented detector families represented by a ``LensVersion``."""
+
     SQL = "sql"
     AUTOENCODER = "autoencoder"
     ISOLATION_FOREST = "isolation_forest"
 
 
 class LensVersion(FrozenModel):
-    """A named, versioned method for identifying a pattern in events."""
+    """A persisted description of one detector implementation and version.
+
+    ``feature_schema`` and ``training_cutoff`` make the detector's input and
+    time boundary inspectable. ``artifact_path`` points to local fitted state
+    when the lens is statistical. A definition describes a detector; it does
+    not claim that any one output is correct.
+    """
 
     lens_id: str
     version: str
@@ -35,7 +43,13 @@ class LensVersion(FrozenModel):
 
 
 class Observation(FrozenModel):
-    """A finding with its subject, time window, method, and supporting evidence."""
+    """A detector output with explicit scope, provenance, and evidence.
+
+    ``value`` is lens-specific and commonly contains a score and cutoff.
+    ``quality`` records calibration or cohort context. ``state_snapshot`` is
+    the contextual state visible when the finding was produced. These fields
+    make a result reviewable; they do not establish truth or causation.
+    """
 
     observation_id: str = Field(default_factory=lambda: str(uuid4()))
     observation_type: str
@@ -59,7 +73,12 @@ class Observation(FrozenModel):
         return value.astimezone(timezone.utc)
 
     def as_event(self) -> ObservationEvent:
-        """Convert the finding into the ledger's dedicated observation event."""
+        """Convert this result to the ledger representation without losing lineage.
+
+        The observation ID becomes the event ID, its supporting inputs become
+        parent references, and the time window plus quality metadata are
+        retained in the event payload.
+        """
         return ObservationEvent(
             event_id=self.observation_id,
             event_type=f"observation.{self.observation_type}",
@@ -84,6 +103,8 @@ class Observation(FrozenModel):
 
 
 class CandidateStatus(StrEnum):
+    """Review lifecycle states for a proposed deterministic Lens."""
+
     PROPOSED = "proposed"
     TESTING = "testing"
     VALIDATED = "validated"
@@ -94,7 +115,13 @@ class CandidateStatus(StrEnum):
 
 
 class LensCandidate(FrozenModel):
-    """A proposed Lens with explicit time boundaries and validation results."""
+    """A proposed SQL Lens and the evidence collected during review.
+
+    The training boundary describes the latest data used to formulate the
+    candidate. The validation boundary is the earliest data allowed to test
+    it. Validation results are diagnostics; approval and activation remain
+    separate, explicit lifecycle decisions.
+    """
 
     candidate_id: str = Field(default_factory=lambda: str(uuid4()))
     lens_id: str
@@ -113,6 +140,7 @@ class LensCandidate(FrozenModel):
 
     @model_validator(mode="after")
     def validate_boundaries(self) -> "LensCandidate":
+        """Reject naive datetimes and validation that is not strictly later."""
         if self.training_boundary.tzinfo is None or self.validation_boundary.tzinfo is None:
             raise ValueError("candidate boundaries must include a timezone")
         if self.validation_boundary <= self.training_boundary:

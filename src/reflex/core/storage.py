@@ -1,4 +1,10 @@
-"""Local durable storage for immutable events, observations, and state."""
+"""Local durable stores for events, observations, and versioned state.
+
+``EventStore`` is the DuckDB ledger. ``StateStore`` is the SQLite store for
+current values, transition history, candidate lifecycle, and run budgets. They
+are separate databases, so a write spanning both stores is not one atomic
+transaction.
+"""
 
 from __future__ import annotations
 
@@ -16,15 +22,22 @@ from .models.lenses import LensCandidate, Observation
 
 
 def _json(value: Any) -> str:
+    """Serialize model and datetime values into deterministic JSON text."""
     if hasattr(value, "model_dump"):
         value = value.model_dump(mode="json")
     return json.dumps(value, default=lambda item: item.isoformat() if isinstance(item, datetime) else str(item), sort_keys=True)
 
 
 class EventStore:
-    """DuckDB event ledger; duplicate IDs are idempotent and conflicting IDs fail."""
+    """DuckDB ledger for native facts and REFLEX-derived event records.
+
+    Opening the store creates its tables and adds metadata columns missing
+    from earlier local schemas. External DuckDB file access is disabled for
+    this connection. Call :meth:`close` when the owner is done using it.
+    """
 
     def __init__(self, path: str | Path):
+        """Open or create the ledger at ``path`` and prepare its local schema."""
         self.path = str(path)
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         self.connection = duckdb.connect(self.path, config={"enable_external_access": "false"})
@@ -80,6 +93,12 @@ class EventStore:
         """)
 
     def add_events(self, events: Iterable[Event]) -> int:
+        """Insert a batch and return the number of new IDs.
+
+        A repeated ID with identical normalized contents is treated as a
+        replay and is not inserted again. Reusing an ID with different content
+        fails the batch. New rows are committed together in one transaction.
+        """
         inserted = 0
         self.connection.execute("BEGIN TRANSACTION")
         try:
@@ -115,7 +134,8 @@ class EventStore:
                 if row:
                     prior = tuple(row)
                     current = normalized
-                    # JSON formatting can vary without changing content; compare decoded values.
+                    # DuckDB may return JSON with different whitespace or key
+                    # ordering, so compare normalized content rather than text.
                     for index in (2, 3, 5, 6, 8, 9, 14, 19):
                         prior = (*prior[:index], _json(json.loads(str(prior[index]))), *prior[index + 1:])
                     if prior != current:
@@ -135,6 +155,12 @@ class EventStore:
 
     def events(self, start: datetime | None = None, end: datetime | None = None, limit: int | None = None,
                *, include_derived: bool = True) -> list[Event]:
+        """Return events ordered by time then ID in ``[start, end)``.
+
+        By default the result contains native input plus derived REFLEX events.
+        Set ``include_derived=False`` when constructing model inputs. A missing
+        bound is unbounded; ``limit`` is passed to DuckDB as a row limit.
+        """
         clauses, params = [], []
         if not include_derived:
             clauses.append("event_kind = 'native'")
@@ -177,22 +203,28 @@ class EventStore:
 
     def native_events(self, start: datetime | None = None, end: datetime | None = None,
                       limit: int | None = None) -> list[Event]:
-        """Return source events without derived observations for model fitting."""
+        """Return only source events, commonly used as model input."""
         return self.events(start, end, limit, include_derived=False)
 
     def all_events(self, start: datetime | None = None, end: datetime | None = None,
                    limit: int | None = None) -> list[Event]:
-        """Explicit accessor for the complete REFLEX event history."""
+        """Return source and derived records from the complete ledger history."""
         return self.events(start, end, limit, include_derived=True)
 
     def count_events(self) -> int:
+        """Count all native and derived ledger rows."""
         return self.connection.execute("SELECT count(*) FROM events").fetchone()[0]
 
     def count_native_events(self) -> int:
+        """Count source rows only, excluding observations and action records."""
         return self.connection.execute("SELECT count(*) FROM events WHERE event_kind = 'native'").fetchone()[0]
 
     def export_parquet(self, path: str | Path) -> int:
-        """Write an immutable, event-time-sorted Parquet snapshot for analysis."""
+        """Write an event-time-sorted Parquet snapshot and return its row count.
+
+        The export is a point-in-time copy for analysis. Changes later written
+        to the DuckDB ledger are not reflected in the existing Parquet file.
+        """
         target = Path(path)
         target.parent.mkdir(parents=True, exist_ok=True)
         table = self.connection.execute("SELECT * FROM events ORDER BY event_time, event_id").fetch_arrow_table()
@@ -200,6 +232,7 @@ class EventStore:
         return table.num_rows
 
     def batches(self, batch_days: int = 5, *, include_derived: bool = False) -> list[tuple[datetime, datetime, int]]:
+        """Describe consecutive UTC-sized event-time batches and their counts."""
         if batch_days <= 0:
             raise ValueError("batch_days must be positive")
         kind_filter = "" if include_derived else " WHERE event_kind = 'native'"
@@ -219,7 +252,15 @@ class EventStore:
 
     def query_sql_lens(self, sql: str, *, limit: int = 1000, start: datetime | None = None,
                        end: datetime | None = None) -> list[dict[str, Any]]:
-        """Execute only bounded SELECT queries against the events relation."""
+        """Run a single bounded read query for a deterministic SQL Lens.
+
+        The query is wrapped with optional event-time predicates and a
+        ``limit + 1`` sentinel. Returning the extra row raises an error instead
+        of silently truncating candidate output. Common external-file and
+        connection-changing functions are rejected before execution. This is
+        an application guardrail for local trusted code, not an adversarial SQL
+        isolation boundary.
+        """
         if limit < 1 or limit > 10_000:
             raise ValueError("lens row limit must be between 1 and 10000")
         if (start is not None and start.tzinfo is None) or (end is not None and end.tzinfo is None):
@@ -233,7 +274,8 @@ class EventStore:
         forbidden = ("read_csv", "read_parquet", "read_json", "glob(", "attach ", "copy ", "install ", "load ", "pragma ", "httpfs", "sqlite_scan")
         if any(term in lowered for term in forbidden):
             raise ValueError("lens SQL may not read external files or relations outside registered events")
-        # Never let a submitted query escape the local connection's database files.
+        # Apply bounds and a sentinel limit outside the submitted SELECT so a
+        # lens cannot bypass the adapter's output-size contract.
         wrapped = f"SELECT * FROM ({statement}) AS lens_output"
         params: list[Any] = []
         clauses = []
@@ -257,6 +299,7 @@ class EventStore:
         return [dict(zip(columns, row, strict=True)) for row in rows]
 
     def save_observations(self, observations: Iterable[Observation]) -> int:
+        """Persist findings as both typed rows and ledger observation events."""
         items = list(observations)
         self.add_events(item.as_event() for item in items)
         count = 0
@@ -270,6 +313,7 @@ class EventStore:
         return count
 
     def load_observations(self, lens_id: str | None = None) -> list[Observation]:
+        """Load findings in deterministic window, subject, and ID order."""
         query = "SELECT record FROM observations"
         params: list[Any] = []
         if lens_id:
@@ -279,11 +323,18 @@ class EventStore:
         return [Observation.model_validate(json.loads(str(row[0]))) for row in self.connection.execute(query, params).fetchall()]
 
     def close(self) -> None:
+        """Close the DuckDB connection owned by this store."""
         self.connection.close()
 
 
 class StateStore:
-    """SQLite-backed operational, knowledge, lens, and discovery state."""
+    """SQLite store for current state, audit records, and bounded run budgets.
+
+    Every value lives in a named namespace and key. Updates replace the current
+    value while appending a versioned transition with a reason. Candidate
+    lifecycle, hypotheses, investigations, and usage budgets have dedicated
+    tables in the same local database.
+    """
 
     NAMESPACES = {"operational", "derived", "knowledge", "lens", "discovery", "execution"}
     TRANSITIONS = {
@@ -293,6 +344,7 @@ class StateStore:
     }
 
     def __init__(self, path: str | Path):
+        """Open or create the state database and enable SQLite write-ahead logging."""
         self.path = str(path)
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         self.connection = sqlite3.connect(self.path)
@@ -326,6 +378,7 @@ class StateStore:
         """)
 
     def set(self, namespace: str, key: str, value: Any, reason: str) -> int:
+        """Store a new version and append an audit entry; return its version."""
         if namespace not in self.NAMESPACES:
             raise ValueError(f"unknown state namespace: {namespace}")
         now = datetime.now(timezone.utc).isoformat()
@@ -338,10 +391,15 @@ class StateStore:
         return version
 
     def get(self, namespace: str, key: str, default: Any = None) -> Any:
+        """Return the current decoded value, or ``default`` when absent."""
         row = self.connection.execute("SELECT value_json FROM state_records WHERE namespace=? AND state_key=?", (namespace, key)).fetchone()
         return json.loads(row[0]) if row else default
 
     def snapshot(self, namespace: str | None = None) -> dict[str, dict[str, Any]]:
+        """Return current values, optionally restricted to one namespace.
+
+        Pass a namespace when keys may be reused in multiple namespaces.
+        """
         query = "SELECT namespace,state_key,value_json FROM state_records"
         params: tuple[Any, ...] = ()
         if namespace:
@@ -350,7 +408,12 @@ class StateStore:
         return {row["state_key"]: json.loads(row["value_json"]) for row in self.connection.execute(query, params)}
 
     def snapshot_at(self, namespace: str, as_of: datetime) -> dict[str, dict[str, Any]]:
-        """Return current static records plus the latest time-stamped state not after `as_of`."""
+        """Return a namespace view reconstructed at an aware timestamp.
+
+        For values with an ``as_of`` field, the latest transition whose value
+        timestamp is no later than ``as_of`` is returned. Values without that
+        field are treated as static state and returned as currently stored.
+        """
         if as_of.tzinfo is None:
             raise ValueError("state snapshot time must include a timezone")
         result: dict[str, dict[str, Any]] = {}
@@ -372,6 +435,7 @@ class StateStore:
         return result
 
     def audit(self, namespace: str | None = None) -> list[dict[str, Any]]:
+        """List state transitions in insertion order, optionally by namespace."""
         query = "SELECT * FROM state_transitions"
         params: tuple[Any, ...] = ()
         if namespace:
@@ -381,16 +445,19 @@ class StateStore:
         return [dict(row) for row in self.connection.execute(query, params).fetchall()]
 
     def put_hypothesis(self, hypothesis: Any) -> None:
+        """Persist a hypothesis record and its versioned knowledge-state value."""
         with self.connection:
             self.connection.execute("INSERT INTO hypotheses VALUES (?,?,?) ON CONFLICT(hypothesis_id) DO UPDATE SET status=excluded.status,record_json=excluded.record_json", (hypothesis.hypothesis_id, hypothesis.status, _json(hypothesis)))
         self.set("knowledge", f"hypothesis:{hypothesis.hypothesis_id}", hypothesis, "hypothesis update")
 
     def put_candidate(self, candidate: LensCandidate, reason: str = "candidate recorded") -> None:
+        """Persist a candidate and append its status to the state audit."""
         with self.connection:
             self.connection.execute("INSERT INTO lens_candidates VALUES (?,?,?) ON CONFLICT(candidate_id) DO UPDATE SET status=excluded.status,record_json=excluded.record_json", (candidate.candidate_id, candidate.status.value, _json(candidate)))
         self.set("lens", f"candidate:{candidate.candidate_id}", candidate, reason)
 
     def transition_candidate(self, candidate_id: str, status: str, *, validation: dict[str, Any] | None = None) -> LensCandidate:
+        """Apply one allowed lifecycle transition and return the updated record."""
         row = self.connection.execute("SELECT record_json FROM lens_candidates WHERE candidate_id=?", (candidate_id,)).fetchone()
         if not row:
             raise KeyError(f"unknown lens candidate {candidate_id}")
@@ -409,12 +476,14 @@ class StateStore:
         return updated
 
     def initialize_budget(self, run_id: str, max_investigations: int, max_queries: int) -> None:
+        """Create a per-run allowance once; later calls keep the original limits."""
         if max_investigations < 0 or max_queries < 0:
             raise ValueError("budgets cannot be negative")
         with self.connection:
             self.connection.execute("INSERT OR IGNORE INTO policy_budgets(run_id,max_investigations,max_queries) VALUES (?,?,?)", (run_id, max_investigations, max_queries))
 
     def consume_budget(self, run_id: str, kind: str, amount: int = 1) -> bool:
+        """Atomically consume allowance, returning false when the cap is reached."""
         if kind not in {"investigation", "query"} or amount <= 0:
             raise ValueError("invalid budget consumption")
         used_col, max_col = ("investigations_used", "max_investigations") if kind == "investigation" else ("queries_used", "max_queries")
@@ -428,11 +497,13 @@ class StateStore:
             return True
 
     def budget(self, run_id: str) -> dict[str, int]:
+        """Return the configured limits and consumed investigation/query counts."""
         row = self.connection.execute("SELECT * FROM policy_budgets WHERE run_id=?", (run_id,)).fetchone()
         if not row:
             raise KeyError(run_id)
         return dict(row)
 
     def close(self) -> None:
+        """Close the SQLite connection owned by this store."""
         self.connection.close()
 

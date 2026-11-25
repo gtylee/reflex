@@ -1,4 +1,9 @@
-"""Versioned statistical lenses and typed observation production."""
+"""Fit, persist, and apply the versioned statistical lenses.
+
+The core split is chronological: fit preprocessing and models on training
+rows, choose score cutoffs on calibration rows, then score later rows. This
+module accepts already-separated rows and does not receive evaluator labels.
+"""
 
 from __future__ import annotations
 
@@ -22,10 +27,14 @@ from .models.events import stable_id
 from .models.features import EventWindowFeatures
 from .models.lenses import LensKind, LensVersion, Observation
 
+# Small tabular fits are quicker and more repeatable without a large pool of
+# competing BLAS/PyTorch worker threads in this local research workflow.
 torch.set_num_threads(1)
 
 
 class Autoencoder(nn.Module):
+    """Small feed-forward reconstruction model used as one statistical lens."""
+
     def __init__(self, input_dim: int, latent_dim: int = 4):
         super().__init__()
         hidden = max(4, input_dim // 2)
@@ -33,11 +42,18 @@ class Autoencoder(nn.Module):
         self.decoder = nn.Sequential(nn.Linear(latent_dim, hidden), nn.ReLU(), nn.Linear(hidden, input_dim))
 
     def forward(self, values: torch.Tensor) -> torch.Tensor:
+        """Reconstruct standardized feature rows from their compressed code."""
         return self.decoder(self.encoder(values))
 
 
 @dataclass
 class FittedLenses:
+    """In-memory models plus the cutoff and metadata needed to score later rows.
+
+    The scaler is fitted on training rows. ``thresholds`` are fitted from the
+    calibration interval, and ``training_cutoff`` records the temporal edge
+    that separates model fitting from later data.
+    """
     artifact_dir: Path
     scaler: StandardScaler
     autoencoder: Autoencoder
@@ -49,10 +65,12 @@ class FittedLenses:
 
 
 def _write_json(path: Path, payload: Any) -> None:
+    """Write stable, readable JSON metadata beside a model artifact."""
     path.write_text(json.dumps(payload, indent=2, sort_keys=True, default=lambda v: v.isoformat() if isinstance(v, datetime) else str(v)) + "\n")
 
 
 def rows_signature(rows: list[EventWindowFeatures]) -> str:
+    """Hash the row identities, times, feature values, and evidence references."""
     payload = [{"subject": row.subject, "start": row.window_start.isoformat(), "end": row.window_end.isoformat(),
                 "features": dict(row.feature_values), "events": row.supporting_event_ids}
                for row in rows]
@@ -64,6 +82,29 @@ def fit_lenses(
     artifact_dir: str | Path, *, seed: int = 11, epochs: int = 35, contamination: float = 0.01,
     training_cutoff: datetime | None = None,
 ) -> FittedLenses:
+    """Fit the autoencoder and Isolation Forest on training rows only.
+
+    A ``StandardScaler`` is learned from ``training_rows`` and reused for the
+    calibration rows. The ``contamination`` quantile of each calibration score
+    distribution becomes that lens's frozen cutoff. Tied values can result in
+    more calibration alerts than the nominal contamination rate, and later
+    drift can change the alert rate further.
+
+    Args:
+        training_rows: Feature windows available for model fitting.
+        calibration_rows: Later, separate windows used only to set cutoffs.
+        artifact_dir: Directory for model files and the JSON manifest.
+        seed: Random seed used by PyTorch and Isolation Forest.
+        epochs: Number of full-batch autoencoder optimization steps.
+        contamination: Upper-tail calibration quantile, between zero and one-half.
+        training_cutoff: Explicit UTC boundary to record in model provenance.
+
+    Returns:
+        A ``FittedLenses`` bundle ready to score later feature windows.
+
+    This function does not read hidden labels or decide whether a flagged row
+    is a real-world anomaly.
+    """
     if len(training_rows) < 12 or not calibration_rows:
         raise ValueError("at least 12 training windows and one calibration window are required")
     if not 0 < contamination < 0.5:
@@ -72,6 +113,8 @@ def fit_lenses(
     target.mkdir(parents=True, exist_ok=True)
     x_train = matrix(training_rows)
     x_calibration = matrix(calibration_rows)
+    # Fit every preprocessing statistic on training only. Fitting this scaler
+    # on calibration or holdout rows would leak their distribution into scores.
     scaler = StandardScaler().fit(x_train)
     z_train = scaler.transform(x_train).astype(np.float32)
     z_calibration = scaler.transform(x_calibration).astype(np.float32)
@@ -95,7 +138,8 @@ def fit_lenses(
     forest.fit(z_train)
     train_if = -forest.decision_function(z_train)
     calibration_if = -forest.decision_function(z_calibration)
-    # Thresholds are calibrated only on the held-out calibration period.
+    # The calibration slice is separate from model fitting, but empirical
+    # quantiles are not a workload guarantee when scores are tied or drift.
     thresholds = {
         "autoencoder": float(np.quantile(calibration_ae, 1 - contamination)),
         "isolation_forest": float(np.quantile(calibration_if, 1 - contamination)),
@@ -116,6 +160,12 @@ def fit_lenses(
 
 
 def load_lenses(artifact_dir: str | Path) -> FittedLenses:
+    """Load a fitted bundle after checking its recorded model-file digest.
+
+    The saved feature names and training row count restore the scaler shape.
+    The artifact directory must be trusted because the Isolation Forest is
+    loaded from a joblib serialization.
+    """
     target = Path(artifact_dir)
     manifest = json.loads((target / "manifest.json").read_text())
     digest = hashlib.sha256((target / "autoencoder.pt").read_bytes() + (target / "isolation_forest.joblib").read_bytes()).hexdigest()[:16]
@@ -139,6 +189,13 @@ def load_lenses(artifact_dir: str | Path) -> FittedLenses:
 
 def score_rows(rows: list[EventWindowFeatures], lenses: FittedLenses, *,
                state_snapshot: dict[str, Any] | Callable[[EventWindowFeatures], dict[str, Any]] | None = None) -> list[Observation]:
+    """Score windows and return one evidence-linked observation per lens.
+
+    Larger scores are more unusual for both detectors. ``is_anomaly`` is the
+    simple comparison ``score >= calibrated threshold``; it is not a verified
+    label. A callable ``state_snapshot`` is evaluated for each output
+    observation so each lens result can receive state as of its window end.
+    """
     if not rows:
         return []
     z = lenses.scaler.transform(matrix(rows)).astype(np.float32)
@@ -176,7 +233,13 @@ def score_rows(rows: list[EventWindowFeatures], lenses: FittedLenses, *,
 
 
 def cluster_observations(observations: list[Observation], *, min_samples: int = 2) -> list[dict[str, Any]]:
-    """Cluster scored windows by standardized score/feature values and time overlap."""
+    """Group flagged windows by standardized score and feature similarity.
+
+    DBSCAN receives the score and feature vector for each flagged observation.
+    This helper does not use labels or evidence text, and it does not currently
+    encode time overlap despite older descriptions of the clustering. Treat
+    clusters as a review aid, not an independent finding or causal account.
+    """
     from sklearn.cluster import DBSCAN
     from sklearn.preprocessing import StandardScaler as Scaler
     candidates = [obs for obs in observations if isinstance(obs.value, dict) and obs.value.get("is_anomaly")]

@@ -15,6 +15,12 @@ from .models.events import Event
 
 @dataclass(frozen=True)
 class SyntheticDataset:
+    """Seeded stream plus evaluator-only truth and chronological boundaries.
+
+    Keep ``ground_truth`` out of the visible event directory when comparing
+    methods. ``train_end`` and ``calibration_end`` define non-overlapping fit,
+    calibration, and later evaluation intervals.
+    """
     events: list[Event]
     ground_truth: list[dict[str, str]]
     start: datetime
@@ -25,6 +31,14 @@ class SyntheticDataset:
 
 
 def generate_synthetic(seed: int = 11, entities: int = 80, days: int = 30, events_per_day: int = 3) -> SyntheticDataset:
+    """Generate reproducible transaction-like events and hidden mechanism labels.
+
+    The stream contains ordinary variation, a broad volume regime shift, a
+    shared-cause behavior after training, and a distinct relationship change
+    late in the run. Labels are returned separately and are not attached to
+    event attributes. This is a controlled test fixture, not a realistic
+    prevalence model for operational anomaly detection.
+    """
     if entities < 12 or days < 25 or events_per_day < 1:
         raise ValueError("use at least 12 entities, 25 days, and one event per day")
     rng = np.random.default_rng(seed)
@@ -38,7 +52,8 @@ def generate_synthetic(seed: int = 11, entities: int = 80, days: int = 30, event
         f"acct-{i:04d}": {"region": f"region-{i % 4}", "cohort": f"cohort-{i % 8}", "baseline": float(rng.lognormal(5.5, 0.55))}
         for i in range(entities)
     }
-    # Two mechanisms are held out for later batches; neither label enters event attributes.
+    # Keep entity membership for planted mechanisms in generator-only state;
+    # the emitted events do not disclose their hidden evaluator labels.
     shared_cause = {f"acct-{i:04d}" for i in range(entities) if 10 <= i < max(14, entities // 5)}
     novel_cohort = {f"acct-{i:04d}" for i in range(entities) if entities // 2 <= i < entities // 2 + max(4, entities // 12)}
     events: list[Event] = []
@@ -111,6 +126,13 @@ def generate_synthetic(seed: int = 11, entities: int = 80, days: int = 30, event
 
 def write_dataset(dataset: SyntheticDataset, directory: str | Path,
                   evaluator_dir: str | Path | None = None) -> dict[str, str]:
+    """Write visible inputs and hidden labels to separate directory trees.
+
+    The manifest and event ledger belong in the experiment workspace. The
+    evaluator JSON belongs in a sibling or otherwise access-controlled
+    directory. Do not mount that evaluator directory into a compared agent's
+    workspace before predictions have been frozen.
+    """
     root = Path(directory)
     root.mkdir(parents=True, exist_ok=True)
     evaluator_root = Path(evaluator_dir) if evaluator_dir else root.parent / f"{root.name}-evaluator"

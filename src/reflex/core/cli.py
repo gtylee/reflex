@@ -24,15 +24,23 @@ from .synthetic import generate_synthetic, write_dataset
 
 
 def _dt(value: str) -> datetime:
+    """Parse an ISO timestamp accepted by the dataset manifest."""
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
 def run_discovery(data_dir: Path, *, epochs: int = 35, seed: int | None = None,
                   evaluator_dir: Path | None = None) -> dict[str, Any]:
-    """Fit on early events, calibrate on the next interval, then score later events.
+    """Run the local discovery path using chronological feature windows.
 
-    The event directory stays label-blind. Evaluator labels are opened only when
-    an explicit evaluator directory is passed after the observations are produced.
+    The manifest supplies start/train/calibration/end boundaries. The model
+    uses only native events to build each split, fits or loads versioned model
+    artifacts, scores calibration and later rows, saves observations, records
+    policy/investigation state, and returns a compact summary. The ordinary
+    data directory remains label-blind. If ``evaluator_dir`` is explicitly
+    supplied, hidden labels are opened only after the observations are made.
+
+    This is a demonstration workflow over a generated dataset. It is not a
+    streaming service, and its anomaly flags are not human-validated labels.
     """
     manifest = json.loads((data_dir / "dataset.json").read_text())
     event_store = EventStore(data_dir / "events.duckdb")
@@ -185,10 +193,12 @@ def run_discovery(data_dir: Path, *, epochs: int = 35, seed: int | None = None,
 
 
 def _json(path: str) -> dict[str, Any]:
+    """Read a UTF-8 JSON file into a Python mapping."""
     return json.loads(Path(path).read_text())
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the parser for local generation, ingestion, discovery, and review."""
     parser = argparse.ArgumentParser(prog="reflex", description="REFLEX event-driven discovery tools")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -282,6 +292,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Dispatch a CLI operation and return its process exit code."""
     args = build_parser().parse_args(argv)
     if args.command == "generate":
         dataset = generate_synthetic(args.seed, args.entities, args.days, args.events_per_day)

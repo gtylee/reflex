@@ -1,4 +1,8 @@
-"""Small adapters for BPI Challenge 2017 CSV and common Loghub inputs."""
+"""Local-file adapters that normalize selected BPI and Loghub formats to Events.
+
+Adapters preserve source fields as attributes and attach file/row provenance.
+They do not fetch source data or make domain judgments about event meaning.
+"""
 
 from __future__ import annotations
 
@@ -15,11 +19,13 @@ from .models.events import Event
 
 
 def _parse_time(value: str) -> datetime:
+    """Parse ISO-8601 text and normalize it to an aware UTC timestamp."""
     parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezone.utc)
 
 
 def _pop_first(row: dict, names: tuple[str, ...], default: str = ""):
+    """Remove and return the first present alias from a mutable source row."""
     for name in names:
         if name in row:
             return row.pop(name)
@@ -27,7 +33,14 @@ def _pop_first(row: dict, names: tuple[str, ...], default: str = ""):
 
 
 def read_bpi2017(path: str | Path, *, source: str = "bpi-challenge-2017") -> Iterator[Event]:
-    """Convert BPI CSV or XES(.gz) events into records with their case as entity."""
+    """Stream BPI CSV or XES/XES.GZ events as immutable REFLEX records.
+
+    The case identifier becomes the entity ID, the activity name becomes the
+    event type, and other event fields remain in ``attributes``. XES trace and
+    event positions, or CSV row positions, are retained in provenance. IDs are
+    based on those positions, so stable source-native IDs are preferable when
+    repeated exports can reorder rows.
+    """
     input_path = Path(path)
     if input_path.name.lower().endswith((".xes", ".xes.gz")):
         opener = gzip.open if input_path.name.lower().endswith(".gz") else open
@@ -71,6 +84,7 @@ def read_bpi2017(path: str | Path, *, source: str = "bpi-challenge-2017") -> Ite
 
 
 def _xes_value(element: ET.Element):
+    """Decode common XES primitive values while preserving unknowns as text."""
     value = element.attrib.get("value", "")
     tag = element.tag.rsplit("}", 1)[-1]
     try:
@@ -89,7 +103,12 @@ _HDFS_LINE = re.compile(r"^(?P<date>\d{6})\s+(?P<time>\d{6})\s+(?P<pid>\d+)\s+(?
 
 
 def read_loghub(path: str | Path, *, source: str = "loghub") -> Iterator[Event]:
-    """Read JSONL, CSV, or the common HDFS loghub format without fetching data."""
+    """Read local JSONL, CSV, or common HDFS text as REFLEX events.
+
+    JSONL and CSV fields outside timestamp/entity/type become attributes. The
+    HDFS text reader recognizes the standard date/time/PID/level/component
+    prefix and skips lines that do not match it. No network request is made.
+    """
     input_path = Path(path)
     if input_path.suffix.lower() in {".jsonl", ".ndjson"}:
         with input_path.open(encoding="utf-8") as file:

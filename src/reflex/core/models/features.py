@@ -8,7 +8,13 @@ from .base import FrozenModel
 
 
 class EventWindowFeatures(FrozenModel):
-    """A feature summary for one subject over one bounded time window."""
+    """A feature vector derived for one subject over one half-open interval.
+
+    ``supporting_event_ids`` lets a reviewer trace each aggregate back to its
+    source rows. ``feature_values`` must use the same names and ordering as the
+    model schema that consumes it. ``cohort`` is descriptive context for
+    comparisons; it is not itself a prediction or causal label.
+    """
 
     subject: str
     window_start: datetime

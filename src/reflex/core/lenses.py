@@ -1,4 +1,4 @@
-"""Deterministic, versioned SQL lenses."""
+"""Deterministic, versioned SQL lenses that produce evidence-linked findings."""
 
 from __future__ import annotations
 
@@ -20,13 +20,28 @@ WHERE TRY_CAST(json_extract_string(attributes, '$.amount') AS DOUBLE) >= 4000
 
 
 class SqlLens:
+    """A named SQL query that turns matching event rows into observations.
+
+    SQL is stored as the lens definition so results carry the exact query and
+    version in their provenance. Queries execute through ``EventStore``'s
+    bounded local adapter.
+    """
+
     def __init__(self, lens_id: str, version: str, description: str, sql: str):
+        """Create an immutable lens definition for the supplied query text."""
         self.definition = LensVersion(lens_id=lens_id, version=version, kind=LensKind.SQL,
                                       description=description, code=sql)
 
     def replay(self, store: EventStore, *, start: datetime | None = None, end: datetime | None = None,
                state_snapshot: dict[str, Any] | Callable[[dict[str, Any]], dict[str, Any]] | None = None,
                limit: int = 1000) -> list[Observation]:
+        """Evaluate the query and make one point-in-time finding per result row.
+
+        The SQL result must include ``event_id``, ``event_type``,
+        ``event_time``, ``entity_ids``, and ``attributes``. Optional time bounds
+        are half-open through the store adapter. A state callback can attach a
+        per-row snapshot without changing the event evidence references.
+        """
         rows = store.query_sql_lens(self.definition.code or "", limit=limit, start=start, end=end)
         result = []
         for row in rows:

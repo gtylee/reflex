@@ -1,4 +1,10 @@
-"""Independent synthetic-ground-truth scoring and honest manual benchmark records."""
+"""Synthetic-label scoring and validation for manually recorded benchmark runs.
+
+Evaluator labels belong outside the input workspace. These helpers are called
+after predictions exist, or by the operator who records an external benchmark
+run. A generated positive label is not the same as an expert judgment on a
+real-world alert.
+"""
 
 from __future__ import annotations
 
@@ -14,6 +20,14 @@ from .models.lenses import Observation
 
 
 def score_synthetic_run(observations: list[Observation], truth: list[dict[str, str]], event_times: dict[str, datetime]) -> dict[str, Any]:
+    """Score flagged observations against synthetic event-level labels.
+
+    An observation is a true positive when it covers at least one labeled
+    event for the same subject in its half-open interval. Recovered events are
+    deduplicated by event ID, so an event covered by multiple observations is
+    counted once in recall. Observation precision-style metrics and event-level
+    recall therefore use different units.
+    """
     predicted = [observation for observation in observations
                  if isinstance(observation.value, dict) and observation.value.get("is_anomaly")]
     matched_events: set[str] = set()
@@ -41,6 +55,12 @@ def score_synthetic_run(observations: list[Observation], truth: list[dict[str, s
 
 
 def mean_interval(values: list[float], *, confidence: float = 0.95) -> dict[str, float | int]:
+    """Return a deterministic percentile bootstrap interval for the sample mean.
+
+    The fixed resampling seed makes reports reproducible. The interval
+    summarizes the supplied sample; it does not correct for dataset or
+    benchmark-design bias.
+    """
     if not values:
         return {"n": 0, "mean": 0.0, "lower": 0.0, "upper": 0.0}
     samples = np.asarray(values, dtype=float)
@@ -61,6 +81,7 @@ VARIANTS = {
 
 
 def protocol_manifest(*, seeds: list[int], objective: str, inference_budget: int, compute_budget_seconds: int) -> dict[str, Any]:
+    """Create a blank A–E protocol record without implying any runs occurred."""
     return {
         "protocol_version": 1,
         "objective": objective,
@@ -76,6 +97,12 @@ def protocol_manifest(*, seeds: list[int], objective: str, inference_budget: int
 
 
 def append_run_record(manifest_path: str | Path, record: dict[str, Any]) -> None:
+    """Validate basic protocol membership and budget fields before appending.
+
+    This helper checks required keys, variant/seed/batch membership,
+    duplicates, and the two declared ceilings. It does not independently
+    verify reported costs, evidence quality, input hashes, or agent outputs.
+    """
     path = Path(manifest_path)
     manifest = json.loads(path.read_text())
     required = manifest["run_record_required"]
@@ -99,6 +126,7 @@ def append_run_record(manifest_path: str | Path, record: dict[str, Any]) -> None
 
 
 def protocol_report(manifest_path: str | Path) -> dict[str, Any]:
+    """Summarize records present in a protocol file and report completeness."""
     manifest = json.loads(Path(manifest_path).read_text())
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for record in manifest["records"]:

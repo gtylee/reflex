@@ -12,7 +12,17 @@ from .base import FrozenModel
 
 
 class Event(FrozenModel):
-    """Common immutable envelope shared by every event kind."""
+    """Common immutable envelope for source facts and derived records.
+
+    ``event_type`` names the domain activity, while ``event_kind`` identifies
+    the REFLEX record role (native, observation, or action). Keep source facts
+    in ``attributes`` and normalized REFLEX metadata in the named lineage
+    fields. ``payload`` carries the record-specific body for derived events.
+
+    Timestamps are normalized to UTC at validation time. ``entity_ids`` may
+    contain more than one participant, and an empty tuple is allowed when a
+    source has no reliable entity key.
+    """
 
     event_id: str = Field(default_factory=lambda: str(uuid4()))
     event_type: str
@@ -47,13 +57,23 @@ class Event(FrozenModel):
 
 
 class NativeEvent(Event):
-    """An immutable event received from an external or synthetic source."""
+    """An immutable source fact, such as an imported log or transaction.
+
+    Native events are the normal input to feature building and model fitting.
+    Derived observations and action records share the ledger but should not be
+    fed back as source data unless a workflow deliberately asks for them.
+    """
 
     event_kind: Literal["native"] = "native"
 
 
 class ObservationEvent(Event):
-    """A Lens finding stored in the same ledger as its supporting events."""
+    """A Lens finding represented in the event ledger.
+
+    ``parent_event_ids`` point to the input evidence. The event uses the end of
+    the observation window as its event time, while the full interval and score
+    remain in ``payload``.
+    """
 
     event_kind: Literal["observation"] = "observation"
     lens_id: str
@@ -62,7 +82,13 @@ class ObservationEvent(Event):
 
 
 class ActionEvent(Event):
-    """A request to run a registered function under a named permission."""
+    """A request for the runtime to call a registered function.
+
+    This record expresses intent; it does not execute code by itself. The
+    runtime is responsible for resolving ``action_function`` through its
+    allowlist, checking ``required_permission``, and applying retry and
+    idempotency rules before any external side effect.
+    """
 
     event_kind: Literal["action"] = "action"
     action_function: str
@@ -72,7 +98,7 @@ class ActionEvent(Event):
 
 
 class ActionResultEvent(Event):
-    """An immutable record of an action attempt or its replay status."""
+    """An immutable record of one action attempt or replay decision."""
 
     event_kind: Literal["action"] = "action"
     action_event_id: str
@@ -81,5 +107,10 @@ class ActionResultEvent(Event):
 
 
 def stable_id(*parts: str) -> str:
-    """Return a repeatable ID for records that must remain stable on replay."""
+    """Return a deterministic UUID5 for a logical record identified by parts.
+
+    Use this when replaying the same lens/window or source record should resolve
+    to the same event ID. Include the lens version or other version boundary in
+    ``parts`` when a changed definition should produce a distinct record.
+    """
     return str(uuid5(NAMESPACE_URL, "reflex:" + ":".join(parts)))

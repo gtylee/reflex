@@ -67,7 +67,7 @@ uv run reflex discovery-benchmark pilot --out reports/reflex-pilot --seeds 11,23
 | `src/reflex/experiments/` | Seeded scenarios, adapters, metrics, and held-out evaluation |
 | `tests/` | Event, storage, runtime, workflow, and benchmark checks |
 
-Read the [REFLEX guide](docs/REFLEX-GUIDE.md), [architecture](docs/architecture.md), [benchmark protocol](docs/benchmark-protocol.md), and [experiment notes](docs/REFLEX-EXPERIMENTS.md). A simple visual overview is in [the REFLEX explainer](docs/reflex-explainer.html).
+Read the [REFLEX guide](docs/REFLEX-GUIDE.md), [core implementation guide](docs/core-guide.md), [architecture](docs/architecture.md), [benchmark protocol](docs/benchmark-protocol.md), and [experiment notes](docs/REFLEX-EXPERIMENTS.md). A simple visual overview is in [the REFLEX explainer](docs/reflex-explainer.html).
 
 ## Data and limits
 
