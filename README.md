@@ -8,6 +8,8 @@ REFLEX turns an event stream into evidence, a decision, and a bounded action. It
 
 `reflex.experiments` contains dataset adapters, synthetic generators, transaction-specific features, example lenses, benchmark labels, evaluation, and report commands. Those profiles compose the core for a particular study. New application code should import reusable operations from `reflex.core` and import a profile only when it needs that dataset or experiment.
 
+For training-only candidate selection, threshold calibration, and versioned lens artifacts, use [`reflex.core.build_lens_package`](docs/lens-builder.md). The taxi, temperature, and BPI examples show application-specific adapters and lens types kept outside `reflex.core`.
+
 The CLI follows the same boundary: use `reflex replay --sql-file lens.sql` for a caller-defined core Lens, and `reflex experiments ...` for prepared examples such as `reflex experiments transaction-replay` and `reflex experiments discovery demo`.
 
 A running Reaction host can load lenses and policies from installed Python packages with
@@ -77,6 +79,7 @@ uv run reflex experiments discovery benchmark pilot --out reports/reflex-pilot -
 | `src/reflex/experiments/lens_selection.py` | Training-based detector choice and calibration |
 | `src/reflex/core/features.py` | Generic feature-row to matrix conversion |
 | `src/reflex/core/discovery.py` | Schema-driven statistical fitting, calibration, and scoring |
+| `src/reflex/core/lens_builder.py` | Training-only candidate selection, calibration, and portable lens packages |
 | `src/reflex/core/policy.py` | Policy decisions, bounded tools, and local investigation |
 | `src/reflex/experiments/transaction_features.py` | Transaction-specific event and window features |
 | `src/reflex/experiments/synthetic_data.py` | Synthetic stream generation and separate evaluator labels |
