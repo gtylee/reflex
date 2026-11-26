@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, model_validator
@@ -18,6 +19,14 @@ class FrozenDict(dict):
 
     def __init__(self, values: dict[str, Any] | None = None):
         dict.__init__(self, values or {})
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> "FrozenDict":
+        """Copy nested values without asking Python to mutate this frozen mapping."""
+        copied = type(self)()
+        memo[id(self)] = copied
+        for key, value in self.items():
+            dict.__setitem__(copied, deepcopy(key, memo), deepcopy(value, memo))
+        return copied
 
     def _immutable(self, *_args: Any, **_kwargs: Any) -> None:
         raise TypeError("record contents are immutable")

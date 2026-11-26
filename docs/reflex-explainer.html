@@ -420,7 +420,7 @@ arguments: story ID, revision, manager ID, headline</code></pre>
       <div class="step-panel" id="step-panel-6" role="tabpanel" aria-labelledby="step-tab-6" tabindex="0" hidden>
         <p class="kicker">Step 6 of 6 · Record and replay</p>
         <h3>The result is saved: keep a trail that can be reviewed</h3>
-        <p>REFLEX writes derived records alongside the original input. A Reaction run records its trigger, version, function versions, emitted event IDs, state snapshot and hash, status, errors, and timestamps.</p>
+        <p>REFLEX writes derived records alongside the original input. A Reaction run records its trigger, version, function versions, emitted event IDs, state snapshot and hash, status, errors, and timestamps. Earlier execution traces stay out of later function snapshots; otherwise each saved run would contain older runs again and the replay record would grow recursively.</p>
         <div class="two-col">
           <article class="card">
             <h4>Where the trail lives</h4>
@@ -743,7 +743,8 @@ uv run reflex experiments performance --sizes 1000,10000,100000 \
         <div class="details-body">
           <ul>
             <li><code>reflex experiments portfolio-benchmark</code> is the portfolio-news A/B/C protocol. The input, objective, and budgets are shared. The repository can run C; A and B require actual external runs.</li>
-            <li><code>reflex experiments discovery benchmark</code> is a separate manual A–E protocol. Its synthetic pilot measures REFLEX statistical Lenses; it does not run five real agent variants or prove that state improved discovery.</li>
+            <li><code>reflex experiments discovery benchmark</code> is a separate manual A–E protocol. Its synthetic pilot measures REFLEX statistical Lenses; it does not run five real agent variants or prove that state improved discovery. Before recording A–E runs, pin each exact input file with <code>bind-inputs</code>; the recorder checks input hashes, objective text, budgets, and the saved output artifact.</li>
+            <li><code>correlation-shift</code> pairs candidate lenses over the same seeds. It compares a univariate baseline with calibration-thresholded correlation, Mahalanobis, and Isolation Forest lenses. Training and calibration data stay in the unchanged regime; labels are only used for held-out scoring.</li>
             <li><code>reflex experiments heldout</code> evaluates C on new synthetic seeds. It does not compare REFLEX with an unrun baseline.</li>
           </ul>
           <pre><code># A/B/C portfolio-news protocol
@@ -754,7 +755,29 @@ uv run reflex experiments portfolio-benchmark report --protocol reflex-benchmark
 
 # Separate repeated-seed synthetic discovery pilot
 uv run reflex experiments discovery benchmark pilot --out reports/reflex-pilot \
-  --seeds 11,23,37</code></pre>
+  --seeds 11,23,37
+
+# Paired correlation-shift lens benchmark
+uv run reflex experiments discovery benchmark correlation-shift \
+  --out reports/reflex-experiments/correlation-shift-v2 \
+  --first-seed 101 --seed-count 30</code></pre>
+          <h4>Correlation-shift result · 30 paired synthetic seeds</h4>
+          <p>The training and calibration periods are unchanged. The shifted regime starts halfway through the held-out period, so there is also a stable held-out segment for checking false alerts. Entries show mean and 95% bootstrap intervals across seeds.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Lens</th><th>Held-out F1</th><th>Stable-period false-positive rate</th></tr></thead>
+              <tbody>
+                <tr><td>Legacy product threshold</td><td>0.587 (0.575–0.600)</td><td>0.006 (0.005–0.008)</td></tr>
+                <tr><td>Calibration product threshold</td><td>0.632 (0.622–0.642)</td><td>0.012 (0.010–0.014)</td></tr>
+                <tr><td>Rolling correlation change</td><td>0.987 (0.984–0.990)</td><td>0.018 (0.011–0.025)</td></tr>
+                <tr><td>Mahalanobis distance</td><td>0.506 (0.496–0.516)</td><td>0.011 (0.009–0.014)</td></tr>
+                <tr><td>Isolation Forest</td><td>0.084 (0.072–0.097)</td><td>0.013 (0.011–0.016)</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p><img src="../reports/reflex-experiments/correlation-shift-v2/f1-comparison.svg" alt="Held-out F1 by lens with 95% intervals across 30 paired seeds" style="width:100%;height:auto"></p>
+          <p class="sample">This demonstrates detection of a deliberately planted synthetic change. It does not establish real-market quality. The related NAB benchmark uses public anomaly windows, not expert adjudication, and tests a different, univariate task. The rolling-correlation lens cites a cross-entity cohort; this report scores detection, not the current entity-local evidence-integrity metric.</p>
+          <p><a href="../reports/reflex-experiments/correlation-shift-v2/README.md">Read the full benchmark report and inspect the sample data</a></p>
         </div>
       </details>
       <div class="table-wrap" style="margin-top:18px">

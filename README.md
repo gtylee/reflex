@@ -66,7 +66,10 @@ For the separate A–E statistical-discovery protocol, use its experiment comman
 
 ```bash
 uv run reflex experiments discovery benchmark pilot --out reports/reflex-pilot --seeds 11,23,37
+uv run reflex experiments discovery benchmark correlation-shift --out reports/reflex-experiments/correlation-shift-v2 --first-seed 101 --seed-count 30
 ```
+
+The correlation-shift report pairs the same held-out cases across a legacy univariate lens and calibration-selected correlation and multivariate lenses. A–E run recording now requires pinned input-file hashes and a saved output artifact for each recorded run; it still does not execute the external agent variants.
 
 ## Code map
 

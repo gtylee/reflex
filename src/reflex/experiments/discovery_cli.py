@@ -8,12 +8,15 @@ its feature schema, synthetic labels, and report formatting.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import time
 
 from reflex.core.storage import EventStore
-from .evaluation import append_run_record, mean_interval, protocol_manifest, protocol_report, score_synthetic_run
+from .correlation_benchmark import run_correlation_benchmark, write_correlation_benchmark
+from .evaluation import (append_run_record, bind_protocol_input_hashes, mean_interval,
+                         protocol_manifest, protocol_report, score_synthetic_run)
 from .local_discovery import run_discovery
 from .synthetic_data import generate_synthetic, write_dataset
 
@@ -120,6 +123,15 @@ def build_parser() -> argparse.ArgumentParser:
     record.add_argument("--record", required=True)
     report = bench.add_parser("report")
     report.add_argument("--protocol", required=True)
+    bind = bench.add_parser("bind-inputs", help="pin the exact bytes for each seed and batch before runs")
+    bind.add_argument("--protocol", required=True)
+    bind.add_argument("--files", required=True, help="JSON mapping seed -> batch -> input file path")
+    correlation = bench.add_parser("correlation-shift", help="compare correlation-aware lenses over paired seeds")
+    correlation.add_argument("--out", default="reports/reflex-experiments/correlation-shift-v2")
+    correlation.add_argument("--first-seed", type=int, default=101)
+    correlation.add_argument("--seed-count", type=int, default=30)
+    correlation.add_argument("--entities", type=int, default=40)
+    correlation.add_argument("--days", type=int, default=60)
     pilot = bench.add_parser("pilot", help="run repeated synthetic detector evaluation")
     pilot.add_argument("--out", default="reports/reflex-pilot")
     pilot.add_argument("--seeds", default="11,23,37")
@@ -177,6 +189,32 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.benchmark_command == "report":
         print(json.dumps(protocol_report(args.protocol), indent=2))
+        return 0
+    if args.benchmark_command == "bind-inputs":
+        files_path = Path(args.files)
+        file_map = _json(args.files)
+        hashes = {}
+        for seed, batches in file_map.items():
+            hashes[str(seed)] = {}
+            for batch, input_file in batches.items():
+                resolved = (files_path.parent / input_file).resolve()
+                try:
+                    content = resolved.read_bytes()
+                except OSError as error:
+                    raise ValueError(f"cannot read input bytes for seed {seed}, batch {batch}: {input_file}") from error
+                hashes[str(seed)][batch] = hashlib.sha256(content).hexdigest()
+        bind_protocol_input_hashes(args.protocol, hashes)
+        print(json.dumps({"input_hashes_bound": True, "seed_count": len(hashes),
+                          "batch_count_per_seed": len(next(iter(hashes.values()), {})),
+                          "protocol": str(Path(args.protocol).resolve())}, indent=2))
+        return 0
+    if args.benchmark_command == "correlation-shift":
+        report = run_correlation_benchmark(first_seed=args.first_seed, seed_count=args.seed_count,
+                                           entities=args.entities, days=args.days)
+        json_path, markdown_path = write_correlation_benchmark(report, args.out)
+        print(json.dumps({"report": str(json_path.resolve()), "summary": str(markdown_path.resolve()),
+                          "seeds": report["protocol"]["seeds"],
+                          "f1": {name: value["f1"] for name, value in report["methods"].items()}}, indent=2))
         return 0
     seeds = [int(value.strip()) for value in args.seeds.split(",") if value.strip()]
     if not seeds or len(seeds) != len(set(seeds)):

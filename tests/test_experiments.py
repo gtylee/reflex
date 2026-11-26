@@ -8,13 +8,15 @@ import numpy as np
 
 from reflex.core.models import Event, LensCandidate
 from reflex.core.storage import EventStore, StateStore
-from reflex.experiments.adapters import (AutoencoderAdapter, CompositeLensAdapter, CorrelationShiftAdapter,
+from reflex.experiments.adapters import (AutoencoderAdapter, CalibratedCorrelationShiftAdapter,
+                                         CompositeLensAdapter, CorrelationShiftAdapter,
                                          GaussianMixtureAdapter, IsolationForestAdapter,
                                          QuantileLensAdapter, SequencePatternAdapter,
                                          default_phase_one_adapters)
 from reflex.experiments.datasets import (GDELT_EVENT_COLUMNS, adapt_fnspid_rows, adapt_gdelt_rows,
                                          adapt_market_price_rows, parse_reuters21578)
 from reflex.experiments import datasets as dataset_module
+from reflex.experiments.correlation_benchmark import run_correlation_benchmark, write_correlation_benchmark
 from reflex.experiments.generators import SCENARIOS, default_configs, generate_scenario
 from reflex.experiments.heldout import run_heldout_benchmark, write_heldout_report
 from reflex.experiments.harnesses import ElizaExperimentAdapter, MockElizaHarness
@@ -150,6 +152,22 @@ def test_heldout_benchmark_writes_seed_level_report(tmp_path):
     assert "Labels are held-out synthetic" in markdown_path.read_text()
 
 
+def test_correlation_benchmark_pairs_lenses_and_keeps_labels_out_of_calibration(tmp_path):
+    report = run_correlation_benchmark(first_seed=101, seed_count=2, entities=16, days=30)
+    assert report["protocol"]["paired_inputs"] is True
+    assert [run["seed"] for run in report["runs"]] == [101, 102]
+    assert all(run["training_truth_count"] == 0 for run in report["runs"])
+    assert all(run["calibration_truth_count"] == 0 for run in report["runs"])
+    assert all(run["stable_test_truth_count"] == 0 for run in report["runs"])
+    assert report["methods"]["calibrated_rolling_correlation"]["f1"]["mean"] > \
+        report["methods"]["legacy_product_quantile"]["f1"]["mean"]
+    assert report["methods"]["calibrated_rolling_correlation"]["stable_false_positive_rate"]["mean"] < 0.1
+    json_path, markdown_path = write_correlation_benchmark(report, tmp_path / "correlation")
+    assert json.loads(json_path.read_text())["protocol"]["label_use_for_selection"] is False
+    assert "Stable held-out FPR" in markdown_path.read_text()
+    assert (tmp_path / "correlation" / "sample-data.csv").exists()
+
+
 class SameInputMock:
     execution_kind = "mock"
 
@@ -234,6 +252,15 @@ def test_phase_one_detectors_return_only_known_ids():
     correlation_case = generate_scenario(config_for("correlation_shift", days=60, entities=16))
     corr = CorrelationShiftAdapter(window=12).run(correlation_case.agent_input(), RunBudget(), trial_seed=5)
     assert set(corr.predicted_event_ids) <= {e.event_id for e in correlation_case.events}
+    correlation_profile = correlation_case.config.model_copy(update={
+        "version": "2.0",
+        "parameters": {**correlation_case.config.parameters,
+                       "lens_strategy": "calibrated_rolling_correlation"},
+    })
+    calibrated = default_phase_one_adapters(correlation_profile)["C"]
+    assert isinstance(calibrated, CalibratedCorrelationShiftAdapter)
+    calibrated_output = calibrated.run(correlation_case.agent_input(), RunBudget(), trial_seed=5)
+    assert set(calibrated_output.predicted_event_ids) <= {e.event_id for e in correlation_case.events}
     seq_case = generate_scenario(config_for("rare_sequence"))
     seq = SequencePatternAdapter(("settlement.file_received", "reconciliation.flagged",
                                   "counterparty.confirmation_missing", "settlement.failed"))

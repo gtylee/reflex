@@ -191,6 +191,8 @@ Approval and activation are distinct lifecycle transitions. Validation records e
 
 `LocalInvestigator` is a no-model fallback. It gathers the observation, nearby supporting events, a state snapshot, and two rival hypotheses. A caller may inject a profile-specific feature selector to add the fixed cohort comparison. With no selector, the core does not guess which feature is meaningful for the domain. Its confidence values are placeholders for structured review and are not calibrated probabilities. Its output explicitly remains deferred for human review.
 
+Reaction function snapshots omit the runtime's `execution` namespace by default. Run records themselves contain captured snapshots, so copying earlier run records into later snapshots would recursively grow the saved state and replay inputs.
+
 An `ActionEvent` is a request record. A separate runtime must resolve its function through an allowlist, check permission and policy, enforce idempotency, and write an `ActionResultEvent`. Keep external side effects behind that runtime boundary; do not make a lens or investigator call an external system directly.
 
 ## Evaluation and honest reporting
@@ -204,7 +206,7 @@ The synthetic generator stores hidden labels in a separate evaluator directory. 
 
 It also reports mechanism coverage. Therefore `true_positive_observations`, recovered event count, and event recall are related but not interchangeable metrics. The scorer evaluates generated labels, not analyst judgments about whether a real alert is important.
 
-The manual A–E benchmark functions record externally run variants. `protocol_manifest` creates the protocol, `append_run_record` validates budget and identity fields, and `protocol_report` summarizes only recorded runs. A manifest with no records is a blank protocol, not a benchmark result.
+The manual A–E benchmark functions record externally run variants. `protocol_manifest` creates an unbound protocol, `bind_protocol_input_hashes` pins the expected bytes for every seed and batch, `append_run_record` checks the exact input hash, objective, declared budgets, and saved output artifact, and `protocol_report` lists each missing seed/batch run. These checks validate record consistency; they cannot prove a claimed model identity or independently verify reported resource use. A manifest with no records is a blank protocol, not a benchmark result.
 
 ## Extending the core
 

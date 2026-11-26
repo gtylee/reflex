@@ -45,6 +45,28 @@ The benchmark asks whether persistent, governed state improves discovery quality
 uv run reflex experiments discovery benchmark init --out benchmark-protocol.json --seeds 11,23,37 --inference-budget 20000 --compute-budget-seconds 900
 ```
 
+Before any run is recorded, pin the exact input bytes for every seed and batch. Create a JSON file mapping each seed and batch name to a file containing the bytes the agents will receive. Paths are relative to that mapping file:
+
+```json
+{
+  "11": {
+    "one-shot": "inputs/seed-11-one-shot.jsonl",
+    "batch-1": "inputs/seed-11-batch-1.jsonl",
+    "batch-2": "inputs/seed-11-batch-2.jsonl",
+    "batch-3": "inputs/seed-11-batch-3.jsonl",
+    "batch-4": "inputs/seed-11-batch-4.jsonl",
+    "batch-5": "inputs/seed-11-batch-5.jsonl",
+    "batch-6": "inputs/seed-11-batch-6.jsonl"
+  }
+}
+```
+
+Include every declared seed in the mapping. The binder hashes the bytes from each referenced file and stores the expected SHA-256 digest in the protocol. It refuses incomplete mappings, non-SHA-256 digests, or binding after any run is recorded.
+
+```bash
+uv run reflex experiments discovery benchmark bind-inputs --protocol benchmark-protocol.json --files input-files.json
+```
+
 For each variant, seed, and batch, write the actual run to a JSON file with these fields:
 
 ```json
@@ -60,9 +82,17 @@ For each variant, seed, and batch, write the actual run to a JSON file with thes
   "compute_seconds": 0,
   "investigation_count": 0,
   "evidence_refs": [],
-  "workspace_ref": "commit-or-artifact-reference"
+  "workspace_ref": "commit-or-artifact-reference",
+  "execution": {
+    "system": "agent or application name",
+    "version": "model or release identifier",
+    "artifact_path": "artifacts/seed-11-a-batch-1-output.json",
+    "artifact_sha256": "sha256-of-the-output-json-file"
+  }
 }
 ```
+
+The output artifact must be JSON containing the same object as `output` in the run record. Its path is relative to the protocol file. The recorder verifies the artifact bytes against the declared digest, checks the recorded input digest against the pinned batch, and requires an exact objective match. These checks establish file and record consistency; they do not independently prove that a named model actually produced the output or that reported costs are truthful.
 
 Record and report actual observations:
 
@@ -71,7 +101,7 @@ uv run reflex experiments discovery benchmark record --protocol benchmark-protoc
 uv run reflex experiments discovery benchmark report --protocol benchmark-protocol.json
 ```
 
-The report marks the protocol complete only after it has all six five-day batches plus the one-shot run for each requested seed and each of the five variants.
+The report lists the missing seed/batch cells for each variant. It marks the protocol complete only after input hashes are pinned and it has all six five-day batches plus the one-shot run for each requested seed and each of the five variants. Discovery counts must be explicitly recorded; the report no longer substitutes zero when a count is absent.
 
 ## Independent scoring
 
@@ -81,4 +111,4 @@ Calculate per-seed quality and cost before pooling. Report means and uncertainty
 
 ## Interpretation rule
 
-The synthetic pilot is only a pipeline check. A successful detector run says nothing by itself about the A–E hypothesis. Draw no superiority conclusion from a single seed, raw anomaly counts, unreviewed explanations, or a run with unequal budgets. Keep missing agent runs missing; the report code never fabricates them.
+The synthetic pilot is only a pipeline check. A successful detector run says nothing by itself about the A–E hypothesis. Draw no superiority conclusion from a single seed, raw anomaly counts, unreviewed explanations, or a run with unequal budgets. Keep missing agent runs missing; the report code shows their exact seed/batch cells.

@@ -413,11 +413,20 @@ class StateStore:
             params = (namespace,)
         return {row["state_key"]: json.loads(row["value_json"]) for row in self.connection.execute(query, params)}
 
-    def snapshot_context(self) -> dict[str, Any]:
-        """Return flat and namespace-qualified views from one SQLite read."""
-        rows = self.connection.execute(
-            "SELECT namespace,state_key,value_json FROM state_records"
-        ).fetchall()
+    def snapshot_context(self, *, exclude_namespaces: Iterable[str] = ()) -> dict[str, Any]:
+        """Return flat and namespace-qualified state views from one SQLite read.
+
+        Runtime bookkeeping can be excluded so saved execution traces do not
+        recursively copy earlier run snapshots into later run snapshots.
+        """
+        excluded = tuple(sorted(set(exclude_namespaces)))
+        query = "SELECT namespace,state_key,value_json FROM state_records"
+        params: tuple[str, ...] = ()
+        if excluded:
+            placeholders = ",".join("?" for _ in excluded)
+            query += f" WHERE namespace NOT IN ({placeholders})"
+            params = excluded
+        rows = self.connection.execute(query, params).fetchall()
         snapshot: dict[str, Any] = {}
         for row in rows:
             value = json.loads(row["value_json"])

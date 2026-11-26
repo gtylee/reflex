@@ -190,7 +190,7 @@ All workflows use the single `reflex` command. Start with `uv run reflex --help`
 | `export-parquet` | Writes a time-ordered Parquet snapshot of the event table. | `uv run reflex export-parquet --db events.duckdb --out events.parquet` |
 | `experiments` | Runs controlled synthetic, public-data replay, operational, news, and performance workflows. | `uv run reflex experiments list` |
 | `experiments portfolio-benchmark` | Prepares and summarizes the separate A/B/C portfolio-news protocol. | `uv run reflex experiments portfolio-benchmark init --out reflex-benchmark.json` |
-| `experiments discovery benchmark` | Manages the manual A–E protocol and its synthetic pilot. | `uv run reflex experiments discovery benchmark pilot --out reports/reflex-pilot --seeds 11,23,37` |
+| `experiments discovery benchmark` | Manages the manual A–E protocol, synthetic pilot, and paired correlation-shift lens benchmark. | `uv run reflex experiments discovery benchmark correlation-shift --out reports/reflex-experiments/correlation-shift-v2 --first-seed 101 --seed-count 30` |
 
 ### Managing a SQL Lens candidate
 
@@ -251,7 +251,7 @@ The GDELT command accesses a public archive when you run it. Its report measures
 ### Do not confuse the comparison protocols
 
 - `reflex experiments portfolio-benchmark` is the portfolio-news A/B/C protocol. The input bundle, objective, and budgets are shared. A and B require actual external runs; the report does not fill them in with mocks. The old `reflex benchmark` route remains an alias.
-- `reflex experiments discovery benchmark` is the separate A–E statistical-discovery protocol. Its `pilot` command repeatedly evaluates REFLEX's synthetic statistical lenses against generator labels. It does **not** run five actual agent variants or establish that persistent state improved discovery.
+- `reflex experiments discovery benchmark` is the separate A–E statistical-discovery protocol. Its `correlation-shift` command compares a univariate baseline with calibration-selected correlation and multivariate lenses over paired seeds. Its `pilot` command repeatedly evaluates REFLEX's synthetic statistical lenses against generator labels. Neither command runs five actual agent variants or establishes that persistent state improved discovery. A–E run recording requires pinned input bytes with `bind-inputs` before results can be added.
 - `reflex experiments heldout` evaluates deterministic C across new seeds. It does **not** make a comparative claim.
 
 ## Extending REFLEX

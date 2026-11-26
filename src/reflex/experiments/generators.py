@@ -87,7 +87,12 @@ def generate_scenario(config: ExperimentConfig) -> ScenarioDataset:
     end = start + timedelta(days=config.days)
     entities = [f"acct-{i:04d}" for i in range(config.entity_count)]
     target_entities = set(entities[:max(2, config.entity_count // 8)])
-    shift_day = config.days // 2
+    # Explicit cut points let benchmark profiles keep calibration entirely in
+    # the baseline regime. Defaults preserve the original scenario definition.
+    shift_day = int(config.parameters.get("correlation_shift_day", config.days // 2))
+    correlation_label_start = int(config.parameters.get("correlation_label_start_day", (config.days * 2) // 3))
+    correlation_label_end = int(config.parameters.get(
+        "correlation_label_end_day", min(config.days, correlation_label_start + 4)))
     events: list[Event] = []
     truth: list[GroundTruthLabel] = []
 
@@ -99,7 +104,8 @@ def generate_scenario(config: ExperimentConfig) -> ScenarioDataset:
         events.append(Event(
             event_id=event_id, event_type=event_type, event_time=timestamp, entity_ids=(entity,),
             attributes=attributes, source="synthetic-experiment-v1",
-            provenance={"seed": config.seed, "generator_version": "1.0"},
+            provenance={"seed": config.seed,
+                        "generator_version": str(config.parameters.get("generator_version", "1.0"))},
             relationships=(f"batch-{day // 5:02d}",),
         ))
         if mechanism:
@@ -156,7 +162,7 @@ def generate_scenario(config: ExperimentConfig) -> ScenarioDataset:
                     "factor_x": round(x, 6), "factor_y": round(y, 6),
                     "product_xy": round(x * y, 6),
                 }, mechanism="correlation_regime_shift"
-                   if (config.days * 2) // 3 <= day < (config.days * 2) // 3 + 4 else None,
+                   if correlation_label_start <= day < correlation_label_end else None,
                     note="The marginal factor distributions remain stable as the correlation changes.")
             elif config.scenario == "spurious_confounder":
                 confounder = int(rng.random() < (0.72 if day < shift_day else 0.50))

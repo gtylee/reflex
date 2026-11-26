@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from copy import deepcopy
 import gzip
 
 import pytest
@@ -24,6 +25,16 @@ def test_event_is_deeply_immutable_and_requires_timezone():
         event.attributes["nested"]["key"] = "value"
     with pytest.raises(ValidationError):
         Event(event_type="x", event_time=datetime(2025, 1, 1))
+
+
+def test_immutable_event_contents_can_be_deepcopied_for_replay():
+    event = make_event("e1", datetime(2025, 1, 1, tzinfo=timezone.utc))
+    copied = deepcopy(event.attributes)
+    assert copied == event.attributes
+    assert copied is not event.attributes
+    assert copied["nested"] is not event.attributes["nested"]
+    with pytest.raises(TypeError):
+        copied["nested"]["tags"] = ("changed",)
 
 
 def test_duckdb_event_replay_is_ordered_idempotent_and_immutable(tmp_path):
@@ -59,7 +70,10 @@ def test_state_versions_audit_and_budget_limits(tmp_path):
     state = StateStore(tmp_path / "state.sqlite")
     assert state.set("operational", "count", {"value": 1}, "initial") == 1
     assert state.set("operational", "count", {"value": 2}, "advance") == 2
+    state.set("execution", "run:prior", {"state_snapshot": {"large": "saved run trace"}}, "prior trace")
     assert state.get("operational", "count") == {"value": 2}
+    assert "run:prior" in state.snapshot_context()
+    assert "run:prior" not in state.snapshot_context(exclude_namespaces={"execution"})
     assert [row["to_version"] for row in state.audit("operational")] == [1, 2]
     state.initialize_budget("run", max_investigations=1, max_queries=2)
     assert state.consume_budget("run", "investigation")

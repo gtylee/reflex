@@ -1,8 +1,10 @@
 from datetime import datetime, timedelta, timezone
+import hashlib
 import json
 
 from reflex.core.discovery import fit_lenses, load_lenses, score_rows
-from reflex.core.evaluation import append_run_record, protocol_manifest, protocol_report, score_synthetic_run
+from reflex.core.evaluation import (append_run_record, bind_protocol_input_hashes,
+                                    protocol_manifest, protocol_report, score_synthetic_run)
 from reflex.core.features import build_entity_windows, event_level_features
 from reflex.core.models import Event
 from reflex.core.synthetic import generate_synthetic, write_dataset
@@ -73,14 +75,57 @@ def test_manual_protocol_requires_recorded_inputs_and_costs(tmp_path):
     path = tmp_path / "protocol.json"
     path.write_text(json.dumps(protocol_manifest(seeds=[11], objective="discover", inference_budget=100,
         compute_budget_seconds=60), indent=2))
-    record = {"variant": "A", "seed": 11, "batch": "one-shot", "input_hash": "abc", "objective": "discover",
-              "output": {"validated_discoveries": 1}, "inference_tokens": 50, "inference_cost": 0.01,
-              "compute_seconds": 20, "investigation_count": 2, "evidence_refs": ["e1"], "workspace_ref": "run/a"}
+    batches = ["one-shot", "batch-1", "batch-2", "batch-3", "batch-4", "batch-5", "batch-6"]
+    input_hashes = {"11": {batch: hashlib.sha256(f"{batch}-input".encode()).hexdigest() for batch in batches}}
+    bind_protocol_input_hashes(path, input_hashes)
+    artifact_dir = tmp_path / "artifacts"
+    artifact_dir.mkdir()
+    artifact = artifact_dir / "run-output.json"
+    output = {"validated_discoveries": 1, "hypotheses": [{"claim": "a candidate"}]}
+    artifact.write_text(json.dumps(output))
+    record = {"variant": "A", "seed": 11, "batch": "one-shot",
+              "input_hash": input_hashes["11"]["one-shot"], "objective": "discover",
+              "output": output, "inference_tokens": 50, "inference_cost": 0.01,
+              "compute_seconds": 20, "investigation_count": 2, "evidence_refs": ["e1"],
+              "workspace_ref": "run/a", "execution": {"system": "test-agent", "version": "1",
+                  "artifact_path": "artifacts/run-output.json",
+                  "artifact_sha256": hashlib.sha256(artifact.read_bytes()).hexdigest()}}
     append_run_record(path, record)
-    assert protocol_report(path)["recorded_runs"] == 1
+    report = protocol_report(path)
+    assert report["recorded_runs"] == 1
+    assert report["input_hashes_bound"] is True
+    assert report["complete"] is False
+    assert report["variants"][0]["validated_discoveries"] == 1
+    assert len(report["variants"][0]["missing_runs"]) == 6
     try:
         append_run_record(path, record)
     except ValueError as error:
         assert "already recorded" in str(error)
     else:
         raise AssertionError("duplicate run should be rejected")
+
+
+def test_manual_protocol_rejects_mismatched_input_objective_and_artifact(tmp_path):
+    path = tmp_path / "protocol.json"
+    path.write_text(json.dumps(protocol_manifest(seeds=[7], objective="fixed objective", inference_budget=100,
+        compute_budget_seconds=60), indent=2))
+    batches = ["one-shot", "batch-1", "batch-2", "batch-3", "batch-4", "batch-5", "batch-6"]
+    hashes = {"7": {batch: hashlib.sha256(batch.encode()).hexdigest() for batch in batches}}
+    bind_protocol_input_hashes(path, hashes)
+    artifact = tmp_path / "output.json"
+    output = {"validated_discoveries": 0, "hypotheses": []}
+    artifact.write_text(json.dumps(output))
+    base = {"variant": "B", "seed": 7, "batch": "one-shot", "input_hash": hashes["7"]["one-shot"],
+            "objective": "fixed objective", "output": output, "inference_tokens": 0, "inference_cost": 0.0,
+            "compute_seconds": 0, "investigation_count": 0, "evidence_refs": [], "workspace_ref": "commit-x",
+            "execution": {"system": "agent", "version": "model-x", "artifact_path": "output.json",
+                          "artifact_sha256": hashlib.sha256(artifact.read_bytes()).hexdigest()}}
+    for changes, message in (({"input_hash": "f" * 64}, "input_hash"),
+                             ({"objective": "changed"}, "objective"),
+                             ({"execution": {**base["execution"], "artifact_sha256": "0" * 64}}, "artifact hash")):
+        try:
+            append_run_record(path, {**base, **changes})
+        except ValueError as error:
+            assert message in str(error)
+        else:
+            raise AssertionError(f"expected {message} mismatch to be rejected")

@@ -225,6 +225,68 @@ class CorrelationShiftAdapter:
                                        "window": self.window, "minimum_change": self.minimum_change})
 
 
+class CalibratedCorrelationShiftAdapter:
+    """Fit a baseline correlation, calibrate a rolling-change cutoff, then score held-out events.
+
+    The calibration interval is required and remains label-blind. Evidence
+    references point to the rolling cross-entity cohort window, not a single
+    entity-local cause. A valid run needs enough observations for a calibration
+    window.
+    """
+
+    variant_id = "C"
+    execution_kind = "deterministic"
+
+    def __init__(self, left: str = "factor_x", right: str = "factor_y", *,
+                 window: int = 24, quantile: float = 0.99):
+        if window < 4 or not 0.5 < quantile < 1.0:
+            raise ValueError("window must be at least four and quantile must be between .5 and 1")
+        self.left, self.right, self.window, self.quantile = left, right, window, quantile
+
+    def run(self, experiment: AgentInput, budgets: RunBudget, *, trial_seed: int) -> AdapterOutput:
+        started = perf_counter()
+        events = sorted(experiment.events, key=lambda event: (event.event_time, event.event_id))
+        train = [event for event in events if event.event_time < experiment.train_end]
+        calibration = [event for event in events
+                       if experiment.train_end <= event.event_time < experiment.calibration_end]
+        if len(train) < self.window or len(calibration) < self.window:
+            return AdapterOutput(compute_seconds=perf_counter() - started,
+                                 metadata={"detector": "calibrated_rolling_correlation",
+                                           "error": "insufficient training or calibration window"})
+        base = float(np.corrcoef([feature_value(e, self.left) for e in train],
+                                 [feature_value(e, self.right) for e in train])[0, 1])
+        scores: dict[str, float] = {}
+        windows: dict[str, tuple[str, ...]] = {}
+        for index in range(self.window - 1, len(events)):
+            sample = events[index - self.window + 1:index + 1]
+            corr = float(np.corrcoef([feature_value(e, self.left) for e in sample],
+                                     [feature_value(e, self.right) for e in sample])[0, 1])
+            if np.isfinite(corr):
+                target = events[index]
+                scores[target.event_id] = abs(corr - base)
+                windows[target.event_id] = tuple(event.event_id for event in sample)
+        cal_scores = [scores[event.event_id] for event in calibration if event.event_id in scores]
+        if not cal_scores:
+            return AdapterOutput(compute_seconds=perf_counter() - started,
+                                 metadata={"detector": "calibrated_rolling_correlation",
+                                           "error": "no valid calibration scores"})
+        threshold = float(np.quantile(cal_scores, self.quantile))
+        test = [event for event in events if event.event_time >= experiment.calibration_end]
+        predicted = [event for event in test
+                     if scores.get(event.event_id, float("-inf")) > threshold]
+        return AdapterOutput(predicted_event_ids=tuple(event.event_id for event in predicted),
+                             evidence_refs={event.event_id: windows[event.event_id] for event in predicted},
+                             compute_seconds=perf_counter() - started,
+                             metadata={"detector": "calibrated_rolling_correlation",
+                                       "baseline_correlation": base, "threshold": threshold,
+                                       "threshold_quantile": self.quantile,
+                                       "window_events": self.window,
+                                       "evidence_scope": "cross_entity_factor_cohort",
+                                       "training_event_count": len(train),
+                                       "calibration_event_count": len(calibration),
+                                       "test_event_count": len(test), "trial_seed": trial_seed})
+
+
 class SequencePatternAdapter:
     """Detect an ordered event pattern and flag only its completing event."""
     variant_id = "C"
@@ -313,11 +375,15 @@ def default_phase_one_adapters(config) -> dict[str, Any]:
     if config.scenario == "rare_sequence":
         return {"C": SequencePatternAdapter(("settlement.file_received", "reconciliation.flagged",
                                                "counterparty.confirmation_missing", "settlement.failed"))}
+    if (config.scenario == "correlation_shift"
+            and config.parameters.get("lens_strategy") == "calibrated_rolling_correlation"):
+        return {"C": CalibratedCorrelationShiftAdapter()}
     feature = str(config.parameters["detector_feature"])
     direction = str(config.parameters.get("direction", "upper"))
     return {"C": QuantileLensAdapter(feature, direction=direction)}
 
 
 __all__ = ["feature_value", "QuantileLensAdapter", "IsolationForestAdapter", "GaussianMixtureAdapter",
-           "AutoencoderAdapter", "CorrelationShiftAdapter", "SequencePatternAdapter", "CompositeLensAdapter", "ANALYTICAL_TOOLBOX",
+           "AutoencoderAdapter", "CorrelationShiftAdapter", "CalibratedCorrelationShiftAdapter",
+           "SequencePatternAdapter", "CompositeLensAdapter", "ANALYTICAL_TOOLBOX",
            "default_phase_one_adapters"]

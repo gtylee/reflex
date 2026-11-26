@@ -517,7 +517,10 @@ class ReactionRuntime:
     def _merged_snapshot(self, pinned_state: dict[str, Any]) -> dict[str, Any]:
         # Preserve the legacy flat lookup while also recording qualified names.
         # Per-invocation snapshots make changes between nodes reproducible.
-        snapshot: dict[str, Any] = self.state.snapshot_context()
+        # Run records contain their own input snapshots. Re-introducing that
+        # execution namespace here would nest every past trace into the next
+        # one and make durable snapshots grow exponentially.
+        snapshot: dict[str, Any] = self.state.snapshot_context(exclude_namespaces={"execution"})
         for requirement, value in pinned_state.items():
             if ":" in requirement:
                 _namespace, key = requirement.split(":", 1)

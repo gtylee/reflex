@@ -7,7 +7,7 @@ Synthetic evaluator labels and A–E benchmark records live in
 from importlib import import_module
 
 __all__ = [
-    "VARIANTS", "append_run_record", "mean_interval", "protocol_manifest",
+    "VARIANTS", "append_run_record", "bind_protocol_input_hashes", "mean_interval", "protocol_manifest",
     "protocol_report", "score_synthetic_run",
 ]
 
